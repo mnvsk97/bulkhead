@@ -190,14 +190,20 @@ More examples: [examples/README.md](/Users/saikrishna/tfy/bulkhead/examples/READ
 
 A repo-local Codex skill is included at [skills/bulkhead-testing/SKILL.md](/Users/saikrishna/tfy/bulkhead/skills/bulkhead-testing/SKILL.md).
 
-Install it into Codex by copying it into your local skills directory:
+## Install The Skill
+
+If you already cloned this repo, install the skill into Codex by copying it into your local skills directory:
 
 ```bash
 mkdir -p ~/.codex/skills/bulkhead-testing
 cp skills/bulkhead-testing/SKILL.md ~/.codex/skills/bulkhead-testing/SKILL.md
 ```
 
-Then invoke it by name in Codex, for example:
+Then restart Codex so it reloads local skills.
+
+## Use The Skill
+
+Ask for it in plain English by name. For example:
 
 ```text
 Use the bulkhead-testing skill to run the simple_langchain example in mock mode with request_count 10.
@@ -208,6 +214,22 @@ Or:
 ```text
 Use the bulkhead-testing skill to run proxy mode against https://api.openai.com and summarize the scorecard.
 ```
+
+You can also ask more generally:
+
+- `Use the bulkhead-testing skill to test my app against rate limits.`
+- `Use the bulkhead-testing skill to run Bulkhead in mock mode and inspect the scorecard.`
+- `Use the bulkhead-testing skill to run the deepagents example with request_count 10.`
+
+What the skill does:
+
+- starts Bulkhead in `mock` or `proxy` mode
+- points your app at `OPENAI_BASE_URL`
+- runs your target command or example app
+- checks `/_bulkhead/scorecard` and `/_bulkhead/requests`
+- summarizes resilience signals like retries, duplicates, and failures
+
+This repo is a local single-skill repo, not a published multi-skill registry like [truefoundry/tfy-agent-skills](https://github.com/truefoundry/tfy-agent-skills). So the install flow here is a local copy, not `npx skills add ...`.
 
 Get started locally:
 

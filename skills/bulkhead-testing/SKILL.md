@@ -72,6 +72,8 @@ mkdir -p ~/.codex/skills/bulkhead-testing
 cp skills/bulkhead-testing/SKILL.md ~/.codex/skills/bulkhead-testing/SKILL.md
 ```
 
+Then restart Codex so it reloads local skills.
+
 ## Invoke
 
 Ask for the skill by name, for example:
