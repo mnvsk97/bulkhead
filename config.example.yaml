@@ -5,6 +5,7 @@ fail_rate: 0.2
 latency_p: 0.0
 latency_min: 5
 latency_max: 15
+request_count: 10
 
 # Advanced exact percentages of total requests.
 # If set, these override fail_rate for fault injection.

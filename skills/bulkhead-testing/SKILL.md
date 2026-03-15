@@ -61,9 +61,31 @@ curl http://127.0.0.1:5000/_bulkhead/requests
    - run outcome
    - resilience score
 
+When reporting duplicate requests or suspected loops, note that some agent frameworks legitimately issue repeated underlying completions. Treat those counters as investigation signals, not automatic proof of a bug.
+
+## Install
+
+Copy this skill into your local Codex skills directory:
+
+```bash
+mkdir -p ~/.codex/skills/bulkhead-testing
+cp skills/bulkhead-testing/SKILL.md ~/.codex/skills/bulkhead-testing/SKILL.md
+```
+
+Then restart Codex so it reloads local skills.
+
+## Invoke
+
+Ask for the skill by name, for example:
+
+- `Use the bulkhead-testing skill to run the simple_langchain example in mock mode.`
+- `Use the bulkhead-testing skill to run proxy mode against https://api.openai.com and report the scorecard.`
+- `Use the bulkhead-testing skill to run the deepagents example with BULKHEAD_REQUEST_COUNT=10.`
+
 ## Notes
 
 - If `config.yaml` exists, `bulkhead start` will load it automatically.
 - CLI flags override `config.yaml`.
+- The examples also read `request_count` from `config.yaml`, or `BULKHEAD_REQUEST_COUNT` if it is set.
 - For first-time users, prefer `mock` mode because it avoids upstream setup.
 - For end-to-end resilience testing, prefer `proxy` mode.
