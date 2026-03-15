@@ -24,12 +24,7 @@ flowchart LR
     end
 ```
 
-As of March 15, 2026, the public status pages showed:
-
-- OpenAI APIs: `99.08%` uptime over the last 90 days, with `67` listed incidents on the current history page
-- Anthropic Claude API: `99.4%` uptime over the last 90 days, with `106` incidents listed across January-March 2026 on the current history page
-
-That is the reason this tool exists: you should be able to test outages before your users find them for you.
+Provider outages, slowdowns, rate limits, and partial failures happen regularly. That is the reason this tool exists: you should be able to test them before your users find them for you.
 
 If you know Toxiproxy, Bulkhead is the same basic idea for LLM APIs: it injects OpenAI-style failures, latency, and weighted fault scenarios so you can test retries, fallbacks, and resilience logic.
 
@@ -65,6 +60,13 @@ Run it with:
 
 ```bash
 bulkhead start --mode mock --scenario mixed-transient --fail-rate 0.2
+```
+
+Run tests with:
+
+```bash
+pip install -e '.[dev]'
+pytest -q
 ```
 
 ## Config
@@ -240,3 +242,19 @@ pip install -e '.[dev]' -r examples/simple_langchain/requirements.txt -r example
 cp config.example.yaml config.yaml
 bulkhead start --mode mock --scenario mixed-transient --fail-rate 0
 ```
+
+## Project Status
+
+Bulkhead is currently an early-stage developer tool. Expect the API surface and scorecard heuristics to evolve.
+
+## Contributing
+
+See [CONTRIBUTING.md](/Users/saikrishna/tfy/bulkhead/CONTRIBUTING.md).
+
+## Security
+
+See [SECURITY.md](/Users/saikrishna/tfy/bulkhead/SECURITY.md).
+
+## License
+
+MIT. See [LICENSE](/Users/saikrishna/tfy/bulkhead/LICENSE).
