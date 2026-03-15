@@ -221,7 +221,7 @@ You can also ask more generally:
 
 - `Use the bulkhead-testing skill to test my app against rate limits.`
 - `Use the bulkhead-testing skill to run Bulkhead in mock mode and inspect the scorecard.`
-- `Use the bulkhead-testing skill to run the deepagents example with request_count 10.`
+- `Use the bulkhead-testing skill to run the simple_langchain example with request_count 10.`
 
 What the skill does:
 
@@ -238,7 +238,7 @@ Get started locally:
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -e '.[dev]' -r examples/simple_langchain/requirements.txt -r examples/deepagents/requirements.txt
+pip install -e '.[dev]' -r examples/simple_langchain/requirements.txt
 cp config.example.yaml config.yaml
 bulkhead start --mode mock --scenario mixed-transient --fail-rate 0
 ```

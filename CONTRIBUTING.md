@@ -7,7 +7,7 @@ Thanks for contributing to Bulkhead.
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -e '.[dev]' -r examples/simple_langchain/requirements.txt -r examples/deepagents/requirements.txt
+pip install -e '.[dev]' -r examples/simple_langchain/requirements.txt
 ```
 
 ## Common Commands

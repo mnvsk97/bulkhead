@@ -80,7 +80,7 @@ Ask for the skill by name, for example:
 
 - `Use the bulkhead-testing skill to run the simple_langchain example in mock mode.`
 - `Use the bulkhead-testing skill to run proxy mode against https://api.openai.com and report the scorecard.`
-- `Use the bulkhead-testing skill to run the deepagents example with BULKHEAD_REQUEST_COUNT=10.`
+- `Use the bulkhead-testing skill to run the simple_langchain example with BULKHEAD_REQUEST_COUNT=10.`
 
 ## Notes
 
