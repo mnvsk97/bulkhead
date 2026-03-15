@@ -59,7 +59,7 @@ class Stats:
 
 config: Config | None = None
 stats = Stats()
-app = FastAPI(title="bulkhead")
+app = FastAPI(title="agentbreak")
 
 
 @cli.callback()
@@ -86,14 +86,14 @@ def pick_error_code() -> int:
 
 def openai_error(status_code: int) -> dict[str, Any]:
     error_map = {
-        400: ("Invalid request injected by Bulkhead.", "invalid_request_error"),
-        401: ("Authentication failure injected by Bulkhead.", "authentication_error"),
-        403: ("Permission failure injected by Bulkhead.", "permission_error"),
-        404: ("Resource not found injected by Bulkhead.", "not_found_error"),
-        413: ("Request too large injected by Bulkhead.", "invalid_request_error"),
-        429: ("Rate limit exceeded by Bulkhead fault injection.", "rate_limit_error"),
-        500: ("Upstream failure injected by Bulkhead.", "server_error"),
-        503: ("Service unavailable injected by Bulkhead.", "server_error"),
+        400: ("Invalid request injected by AgentBreak.", "invalid_request_error"),
+        401: ("Authentication failure injected by AgentBreak.", "authentication_error"),
+        403: ("Permission failure injected by AgentBreak.", "permission_error"),
+        404: ("Resource not found injected by AgentBreak.", "not_found_error"),
+        413: ("Request too large injected by AgentBreak.", "invalid_request_error"),
+        429: ("Rate limit exceeded by AgentBreak fault injection.", "rate_limit_error"),
+        500: ("Upstream failure injected by AgentBreak.", "server_error"),
+        503: ("Service unavailable injected by AgentBreak.", "server_error"),
     }
     message, error_type = error_map[status_code]
     return {
@@ -193,14 +193,14 @@ def validate_latency_range(latency_min: float, latency_max: float) -> tuple[floa
 
 def mock_completion() -> dict[str, Any]:
     return {
-        "id": "chatcmpl-bulkhead-mock",
+        "id": "chatcmpl-agentbreak-mock",
         "object": "chat.completion",
         "created": 0,
-        "model": "bulkhead-mock",
+        "model": "agentbreak-mock",
         "choices": [
             {
                 "index": 0,
-                "message": {"role": "assistant", "content": "Bulkhead mock response."},
+                "message": {"role": "assistant", "content": "AgentBreak mock response."},
                 "finish_reason": "stop",
             }
         ],
@@ -261,7 +261,7 @@ def print_scorecard() -> None:
     data = scorecard_data()
     lines = [
         "",
-        "Bulkhead Resilience Scorecard",
+        "AgentBreak Resilience Scorecard",
         f"Requests Seen: {data['requests_seen']}",
         f"Injected Faults: {data['injected_faults']}",
         f"Latency Injections: {data['latency_injections']}",
@@ -321,7 +321,7 @@ async def proxy_chat_completions(request: Request) -> Response:
                 status_code=502,
                 content={
                     "error": {
-                        "message": f"Bulkhead could not reach upstream: {exc}",
+                        "message": f"AgentBreak could not reach upstream: {exc}",
                         "type": "upstream_connection_error",
                         "code": 502,
                     }
@@ -346,14 +346,22 @@ async def healthz() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.get("/_bulkhead/scorecard")
-async def get_scorecard() -> dict[str, Any]:
+def current_scorecard() -> dict[str, Any]:
     return scorecard_data()
 
 
-@app.get("/_bulkhead/requests")
-async def get_requests() -> dict[str, Any]:
+def current_requests() -> dict[str, Any]:
     return {"recent_requests": stats.recent_requests}
+
+
+@app.get("/_agentbreak/scorecard")
+async def get_agentbreak_scorecard() -> dict[str, Any]:
+    return current_scorecard()
+
+
+@app.get("/_agentbreak/requests")
+async def get_agentbreak_requests() -> dict[str, Any]:
+    return current_requests()
 
 
 def install_signal_handlers() -> None:
@@ -366,12 +374,12 @@ def install_signal_handlers() -> None:
 
 @cli.command(
     help=(
-        "Start Bulkhead.\n\n"
-        "If --config is omitted, Bulkhead looks for ./config.yaml.\n"
+        "Start AgentBreak.\n\n"
+        "If --config is omitted, AgentBreak looks for ./config.yaml.\n"
         "Examples:\n"
-        "  bulkhead start --mode mock --scenario mixed-transient\n"
-        "  bulkhead start --mode proxy --upstream-url https://api.openai.com --scenario mixed-transient\n"
-        "  bulkhead start --config bulkhead.yaml"
+        "  agentbreak start --mode mock --scenario mixed-transient\n"
+        "  agentbreak start --mode proxy --upstream-url https://api.openai.com --scenario mixed-transient\n"
+        "  agentbreak start --config agentbreak.yaml"
     )
 )
 def start(
@@ -389,7 +397,7 @@ def start(
     latency_min: float | None = typer.Option(None, help="Minimum injected latency in seconds."),
     latency_max: float | None = typer.Option(None, help="Maximum injected latency in seconds."),
     seed: int | None = typer.Option(None, help="Optional deterministic random seed."),
-    port: int = typer.Option(PORT, help="Port to bind Bulkhead on."),
+    port: int = typer.Option(PORT, help="Port to bind AgentBreak on."),
 ) -> None:
     global config
     file_config = maybe_load_config(config_path)

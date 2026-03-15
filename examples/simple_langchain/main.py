@@ -15,7 +15,7 @@ def get_weather(city: str) -> str:
 
 
 def load_request_count() -> int:
-    raw = os.getenv("BULKHEAD_REQUEST_COUNT")
+    raw = os.getenv("AGENTBREAK_REQUEST_COUNT")
     if raw is not None:
         return max(1, int(raw))
 

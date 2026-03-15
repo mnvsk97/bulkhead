@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "bulkhead"
+name = "agentbreak"
 version = "0.1.0"
 description = "Minimal chaos proxy for OpenAI-compatible LLM apps."
 readme = "README.md"
@@ -28,12 +28,12 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/mnvsk97/bulkhead"
-Repository = "https://github.com/mnvsk97/bulkhead"
-Issues = "https://github.com/mnvsk97/bulkhead/issues"
+Homepage = "https://github.com/mnvsk97/agentbreak"
+Repository = "https://github.com/mnvsk97/agentbreak"
+Issues = "https://github.com/mnvsk97/agentbreak/issues"
 
 [project.scripts]
-bulkhead = "bulkhead.main:cli"
+agentbreak = "agentbreak.main:cli"
 
 [project.optional-dependencies]
 dev = [
@@ -41,7 +41,7 @@ dev = [
 ]
 
 [tool.setuptools]
-packages = ["bulkhead"]
+packages = ["agentbreak"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

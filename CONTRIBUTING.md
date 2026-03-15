@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for contributing to Bulkhead.
+Thanks for contributing to AgentBreak.
 
 ## Development Setup
 
@@ -18,10 +18,10 @@ Run tests:
 pytest -q
 ```
 
-Run Bulkhead locally:
+Run AgentBreak locally:
 
 ```bash
-bulkhead start --mode mock --scenario mixed-transient --fail-rate 0
+agentbreak start --mode mock --scenario mixed-transient --fail-rate 0
 ```
 
 Run the simple example:

@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from bulkhead import main
+from agentbreak import main
 
 
 def reset_state() -> None:
@@ -82,7 +82,7 @@ def test_injected_failure_updates_scorecard(status_code: int, error_type: str) -
     assert response.json()["error"]["code"] == status_code
     assert main.stats.injected_faults == 1
     assert main.stats.upstream_failures == 1
-    assert client.get("/_bulkhead/scorecard").json()["requests_seen"] == 1
+    assert client.get("/_agentbreak/scorecard").json()["requests_seen"] == 1
 
 
 def test_parse_error_codes() -> None:
@@ -132,7 +132,7 @@ def test_maybe_load_config_default_config_yaml(tmp_path: Path, monkeypatch) -> N
 
 
 def test_maybe_load_config_explicit_path(tmp_path: Path) -> None:
-    config_path = tmp_path / "bulkhead.yaml"
+    config_path = tmp_path / "agentbreak.yaml"
     config_path.write_text("mode: proxy\nscenario: brownout\n", encoding="utf-8")
     assert main.maybe_load_config(str(config_path))["scenario"] == "brownout"
 
@@ -217,8 +217,8 @@ def test_duplicate_requests_are_counted(monkeypatch) -> None:
     client.post("/v1/chat/completions", json=payload)
     client.post("/v1/chat/completions", json=payload)
 
-    scorecard = client.get("/_bulkhead/scorecard").json()
-    requests = client.get("/_bulkhead/requests").json()
+    scorecard = client.get("/_agentbreak/scorecard").json()
+    requests = client.get("/_agentbreak/requests").json()
 
     assert scorecard["duplicate_requests"] == 2
     assert scorecard["suspected_loops"] == 1
@@ -238,5 +238,5 @@ def test_mock_mode_returns_fake_success() -> None:
     )
 
     assert response.status_code == 200
-    assert response.json()["model"] == "bulkhead-mock"
+    assert response.json()["model"] == "agentbreak-mock"
     assert main.stats.upstream_successes == 1
