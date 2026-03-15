@@ -145,6 +145,27 @@ curl http://localhost:5000/_bulkhead/scorecard
 curl http://localhost:5000/_bulkhead/requests
 ```
 
+## Reading The Scorecard
+
+The scorecard is a quick signal, not a perfect pass/fail oracle.
+
+- `duplicate_requests` means Bulkhead saw the same request body more than once
+- `suspected_loops` means Bulkhead saw the same request body at least three times
+
+That can indicate a real problem such as:
+
+- a retry loop with no backoff
+- an app resending the same request after an error
+- a framework getting stuck and replaying work
+
+But it can also happen during normal agent execution. Some agent frameworks make repeated underlying completion calls while planning, using tools, or recovering from intermediate steps.
+
+So:
+
+- treat high duplicate counts as a clue to inspect
+- use `/_bulkhead/requests` to see what was repeated
+- do not assume every duplicate is a bug
+
 ## Scenarios
 
 - `mixed-transient`

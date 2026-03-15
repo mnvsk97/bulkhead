@@ -61,6 +61,8 @@ curl http://127.0.0.1:5000/_bulkhead/requests
    - run outcome
    - resilience score
 
+When reporting duplicate requests or suspected loops, note that some agent frameworks legitimately issue repeated underlying completions. Treat those counters as investigation signals, not automatic proof of a bug.
+
 ## Install
 
 Copy this skill into your local Codex skills directory:
