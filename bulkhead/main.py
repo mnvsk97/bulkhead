@@ -174,7 +174,13 @@ def resolve_scenario(name: str) -> dict[str, Any]:
 
 
 def choose(value: Any, fallback: Any) -> Any:
+    if value == "":
+        return fallback
     return fallback if value is None else value
+
+
+def has_cli_overrides(**values: Any) -> bool:
+    return any(value not in (None, "") for value in values.values())
 
 
 def validate_latency_range(latency_min: float, latency_max: float) -> tuple[float, float]:
@@ -358,7 +364,16 @@ def install_signal_handlers() -> None:
     signal.signal(signal.SIGTERM, handle_signal)
 
 
-@cli.command()
+@cli.command(
+    help=(
+        "Start Bulkhead.\n\n"
+        "If --config is omitted, Bulkhead looks for ./config.yaml.\n"
+        "Examples:\n"
+        "  bulkhead start --mode mock --scenario mixed-transient\n"
+        "  bulkhead start --mode proxy --upstream-url https://api.openai.com --scenario mixed-transient\n"
+        "  bulkhead start --config bulkhead.yaml"
+    )
+)
 def start(
     config_path: str | None = typer.Option(None, "--config", help="Optional YAML config path. Defaults to ./config.yaml if present."),
     mode: str | None = typer.Option(None, help="proxy forwards to a real upstream, mock returns fake successes."),
@@ -378,6 +393,23 @@ def start(
 ) -> None:
     global config
     file_config = maybe_load_config(config_path)
+    if not file_config and not has_cli_overrides(
+        mode=mode,
+        upstream_url=upstream_url,
+        scenario=scenario,
+        fail_rate=fail_rate,
+        faults=faults,
+        error_codes=error_codes,
+        latency_p=latency_p,
+        latency_min=latency_min,
+        latency_max=latency_max,
+        seed=seed,
+    ):
+        raise typer.BadParameter(
+            "No config.yaml found and no CLI settings were provided. "
+            "Create config.yaml, pass --config, or run with explicit flags such as "
+            "--mode mock --scenario mixed-transient."
+        )
 
     resolved_mode = choose(mode, file_config.get("mode", "proxy"))
     resolved_upstream_url = choose(upstream_url, file_config.get("upstream_url", ""))

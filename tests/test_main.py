@@ -140,6 +140,12 @@ def test_maybe_load_config_explicit_path(tmp_path: Path) -> None:
 def test_choose_prefers_cli_value() -> None:
     assert main.choose("cli", "file") == "cli"
     assert main.choose(None, "file") == "file"
+    assert main.choose("", "file") == "file"
+
+
+def test_has_cli_overrides() -> None:
+    assert main.has_cli_overrides(mode="mock") is True
+    assert main.has_cli_overrides(mode=None, upstream_url="") is False
 
 
 def test_validate_latency_range() -> None:

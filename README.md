@@ -2,6 +2,8 @@
 
 Minimal chaos proxy for OpenAI-compatible LLM apps.
 
+Think of Bulkhead as Toxiproxy for AI: instead of generic TCP toxics, it injects OpenAI-style API failures, latency, and weighted fault scenarios into LLM traffic so you can test retries, fallbacks, and resilience logic.
+
 Bulkhead can run in two modes:
 
 - `proxy`: inject faults, otherwise forward to a real upstream
@@ -119,3 +121,7 @@ OPENAI_API_KEY=dummy OPENAI_BASE_URL=http://localhost:5000/v1 python main.py
 ```
 
 More examples: [examples/README.md](/Users/saikrishna/tfy/bulkhead/examples/README.md).
+
+## Codex Skill
+
+A minimal repo-local skill is included at [skills/bulkhead-testing/SKILL.md](/Users/saikrishna/tfy/bulkhead/skills/bulkhead-testing/SKILL.md) for running Bulkhead in `mock` or `proxy` mode, executing a target app, and checking the scorecard endpoints.
