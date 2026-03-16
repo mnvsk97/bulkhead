@@ -156,7 +156,7 @@ Install the slash command into your project:
 
 ```bash
 mkdir -p .claude/commands
-curl -sSL https://raw.githubusercontent.com/mnvsk97/agentbreak/main/.claude/commands/agentbreak.md \
+curl -sSL https://raw.githubusercontent.com/mnvsk97/agentbreak/main/.claude-plugin/commands/agentbreak.md \
   -o .claude/commands/agentbreak.md
 ```
 
