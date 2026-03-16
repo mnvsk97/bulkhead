@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AgentBreak</title>
+    <meta
+      name="description"
+      content="Minimal chaos proxy for OpenAI-compatible LLM apps."
+    />
+    <style>
+      :root {
+        --bg: #f4efe7;
+        --panel: rgba(255, 252, 246, 0.78);
+        --panel-strong: #fffaf2;
+        --text: #171411;
+        --muted: #5e554a;
+        --line: rgba(23, 20, 17, 0.12);
+        --accent: #cf5f34;
+        --accent-dark: #9f4524;
+        --shadow: 0 24px 80px rgba(73, 45, 24, 0.14);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at top left, rgba(207, 95, 52, 0.18), transparent 30%),
+          radial-gradient(circle at 85% 10%, rgba(56, 119, 102, 0.15), transparent 26%),
+          linear-gradient(180deg, #fbf7f1 0%, var(--bg) 100%);
+        color: var(--text);
+        font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .page {
+        width: min(1120px, calc(100% - 40px));
+        margin: 0 auto;
+        padding: 24px 0 56px;
+      }
+
+      .nav {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 8px 0 24px;
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
+        font-size: 0.95rem;
+        letter-spacing: 0.04em;
+      }
+
+      .brand-mark {
+        width: 12px;
+        height: 12px;
+        border-radius: 999px;
+        background: linear-gradient(135deg, var(--accent) 0%, #ec9e58 100%);
+        box-shadow: 0 0 0 6px rgba(207, 95, 52, 0.12);
+      }
+
+      .nav-links {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .nav-links a,
+      .button {
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.6);
+        padding: 10px 14px;
+        border-radius: 999px;
+        transition: 160ms ease;
+      }
+
+      .nav-links a:hover,
+      .button:hover {
+        transform: translateY(-1px);
+        border-color: rgba(23, 20, 17, 0.24);
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+        gap: 28px;
+        align-items: stretch;
+        padding: 28px 0 22px;
+      }
+
+      .card {
+        border: 1px solid var(--line);
+        background: var(--panel);
+        backdrop-filter: blur(12px);
+        border-radius: 28px;
+        box-shadow: var(--shadow);
+      }
+
+      .hero-copy {
+        padding: 42px;
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 12px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        color: var(--muted);
+        font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      h1 {
+        margin: 20px 0 16px;
+        font-size: clamp(3rem, 8vw, 5.8rem);
+        line-height: 0.94;
+        letter-spacing: -0.07em;
+      }
+
+      .lead {
+        margin: 0;
+        max-width: 24ch;
+        color: var(--muted);
+        font-size: clamp(1.05rem, 2vw, 1.35rem);
+        line-height: 1.55;
+      }
+
+      .hero-actions {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-top: 28px;
+      }
+
+      .button.primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff8f3;
+      }
+
+      .button.primary:hover {
+        background: var(--accent-dark);
+        border-color: var(--accent-dark);
+      }
+
+      .hero-meta {
+        display: flex;
+        gap: 18px;
+        flex-wrap: wrap;
+        margin-top: 32px;
+        padding-top: 20px;
+        border-top: 1px solid var(--line);
+        color: var(--muted);
+      }
+
+      .meta-item strong {
+        display: block;
+        margin-bottom: 4px;
+        color: var(--text);
+        font-size: 1rem;
+      }
+
+      .terminal {
+        padding: 18px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+      }
+
+      .terminal-top {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 18px;
+      }
+
+      .terminal-top span {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        background: #d8cbc0;
+      }
+
+      .terminal pre,
+      .snippet pre {
+        margin: 0;
+        overflow-x: auto;
+        font-size: 0.96rem;
+        line-height: 1.7;
+        color: #2d261f;
+        font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
+      }
+
+      .terminal-note {
+        margin-top: 18px;
+        padding-top: 18px;
+        border-top: 1px solid var(--line);
+        color: var(--muted);
+      }
+
+      .section {
+        padding: 18px 0;
+      }
+
+      .section-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+      }
+
+      .section-title {
+        margin: 0 0 10px;
+        font-size: 1.3rem;
+        letter-spacing: -0.03em;
+      }
+
+      .section-copy {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.7;
+      }
+
+      .flow,
+      .snippet,
+      .feature-list {
+        padding: 24px;
+      }
+
+      .flow-line {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 12px;
+        font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
+        font-size: 0.95rem;
+      }
+
+      .node {
+        padding: 10px 14px;
+        border-radius: 14px;
+        border: 1px solid var(--line);
+        background: var(--panel-strong);
+      }
+
+      .arrow {
+        color: var(--muted);
+      }
+
+      .feature-list ul {
+        margin: 14px 0 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .feature-list li {
+        padding: 12px 0;
+        border-top: 1px solid var(--line);
+        color: var(--muted);
+      }
+
+      .feature-list li strong {
+        color: var(--text);
+      }
+
+      .footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding-top: 18px;
+        margin-top: 12px;
+        border-top: 1px solid var(--line);
+        color: var(--muted);
+        font-size: 0.95rem;
+      }
+
+      @media (max-width: 900px) {
+        .hero,
+        .section-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .hero-copy,
+        .terminal {
+          padding: 28px;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .page {
+          width: min(100% - 24px, 1120px);
+          padding-top: 16px;
+        }
+
+        .nav,
+        .footer {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+
+        h1 {
+          font-size: clamp(2.6rem, 18vw, 4rem);
+        }
+
+        .hero-copy,
+        .terminal,
+        .flow,
+        .snippet,
+        .feature-list {
+          padding: 22px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <nav class="nav">
+        <a class="brand" href="#">
+          <span class="brand-mark"></span>
+          <span>agentbreak</span>
+        </a>
+        <div class="nav-links">
+          <a href="#how">How it works</a>
+          <a href="https://pypi.org/project/agentbreak/">PyPI</a>
+          <a href="https://github.com/mnvsk97/agentbreak">GitHub</a>
+        </div>
+      </nav>
+
+      <section class="hero">
+        <article class="card hero-copy">
+          <div class="eyebrow">LLM chaos testing, minus the ceremony</div>
+          <h1>Break the provider.<br />Not your app.</h1>
+          <p class="lead">
+            AgentBreak is a tiny proxy that injects slowdowns, 429s, 500s, and
+            flaky responses into OpenAI-compatible traffic so you can see how
+            your app behaves before production does it for you.
+          </p>
+          <div class="hero-actions">
+            <a class="button primary" href="https://pypi.org/project/agentbreak/"
+              >Install from PyPI</a
+            >
+            <a class="button" href="https://github.com/mnvsk97/agentbreak"
+              >View source</a
+            >
+          </div>
+          <div class="hero-meta">
+            <div class="meta-item">
+              <strong>Mock or proxy</strong>
+              <span>Run fake responses or forward real traffic upstream.</span>
+            </div>
+            <div class="meta-item">
+              <strong>Fast setup</strong>
+              <span>Point `OPENAI_BASE_URL` at localhost and start testing.</span>
+            </div>
+          </div>
+        </article>
+
+        <aside class="card terminal" aria-label="Quick start terminal">
+          <div>
+            <div class="terminal-top">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+            <pre><code>pip install agentbreak
+
+agentbreak start \
+  --mode mock \
+  --scenario mixed-transient \
+  --fail-rate 0.2
+
+export OPENAI_BASE_URL=http://localhost:5000/v1
+export OPENAI_API_KEY=dummy</code></pre>
+          </div>
+          <p class="terminal-note">
+            Enough to validate retries, fallbacks, timeout handling, and
+            duplicate request behavior locally.
+          </p>
+        </aside>
+      </section>
+
+      <section class="section section-grid" id="how">
+        <article class="card flow">
+          <h2 class="section-title">How it works</h2>
+          <p class="section-copy">
+            Sit AgentBreak between your app and an OpenAI-compatible endpoint.
+            Then inject controlled failure while keeping the interface familiar.
+          </p>
+          <div class="flow-line" style="margin-top: 22px">
+            <span class="node">your app</span>
+            <span class="arrow">-&gt;</span>
+            <span class="node">AgentBreak</span>
+            <span class="arrow">-&gt;</span>
+            <span class="node">provider or mock</span>
+          </div>
+        </article>
+
+        <article class="card snippet">
+          <h2 class="section-title">Useful endpoints</h2>
+          <p class="section-copy">
+            Track what happened while your client was retrying or failing.
+          </p>
+          <div style="margin-top: 18px">
+            <pre><code>curl http://localhost:5000/_agentbreak/scorecard
+curl http://localhost:5000/_agentbreak/requests</code></pre>
+          </div>
+        </article>
+      </section>
+
+      <section class="section">
+        <article class="card feature-list">
+          <h2 class="section-title">Minimal by design</h2>
+          <p class="section-copy">
+            It only covers the parts you need to pressure-test app resilience.
+          </p>
+          <ul>
+            <li><strong>Failure injection:</strong> `429`, `500`, `503`, auth errors, and latency.</li>
+            <li><strong>Traffic modes:</strong> run fully mocked or proxy real upstream calls.</li>
+            <li><strong>Inspection:</strong> inspect requests and review a small scorecard.</li>
+            <li><strong>Target:</strong> `POST /v1/chat/completions` for OpenAI-compatible apps.</li>
+          </ul>
+        </article>
+      </section>
+
+      <footer class="footer">
+        <span>Python 3.10+ • MIT licensed</span>
+        <span>
+          Built for testing fallback, retry, and timeout handling in LLM apps.
+        </span>
+      </footer>
+    </main>
+  </body>
+</html>
