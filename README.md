@@ -150,6 +150,25 @@ pip install -e '.[dev]'
 pytest -q
 ```
 
+## Claude Code
+
+Install the slash command into your project:
+
+```bash
+mkdir -p .claude/commands
+curl -sSL https://raw.githubusercontent.com/mnvsk97/agentbreak/main/.claude/commands/agentbreak.md \
+  -o .claude/commands/agentbreak.md
+```
+
+Then in Claude Code:
+
+```
+/agentbreak run my app in mock mode and check the scorecard
+/agentbreak start proxy mode against https://api.openai.com with rate-limited scenario
+```
+
+The command teaches Claude how to start the server, choose scenarios, write config files, and interpret the scorecard.
+
 ## Agent Skill
 
 This repo includes a portable Agent Skills skill at [skills/agentbreak-testing/SKILL.md](skills/agentbreak-testing/SKILL.md).

@@ -1,6 +1,6 @@
 ---
 name: agentbreak-testing
-description: Use when testing an LLM app or agent with AgentBreak in this repo. Starts AgentBreak in mock or proxy mode, chooses a scenario or weighted faults, points the target app at OPENAI_BASE_URL, runs the target command, and checks the scorecard endpoints.
+description: Use when testing an LLM app or agent with AgentBreak. Starts AgentBreak in mock or proxy mode, chooses a scenario or weighted faults, points the target app at OPENAI_BASE_URL, runs the target command, and checks the scorecard endpoints. Full reference: .claude/commands/agentbreak.md
 ---
 
 # AgentBreak Testing

@@ -1,0 +1,12 @@
+{
+  "name": "agentbreak",
+  "version": "0.1.0",
+  "description": "Chaos testing guidance for agentbreak — scenarios, config, scorecard interpretation, and debugging loops",
+  "author": {
+    "name": "TrueFoundry"
+  },
+  "homepage": "https://github.com/mnvsk97/agentbreak",
+  "repository": "https://github.com/mnvsk97/agentbreak",
+  "license": "Apache-2.0",
+  "skills": "./skills"
+}
