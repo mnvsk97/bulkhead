@@ -730,7 +730,7 @@ async def proxy_mcp(request: Request) -> JSONResponse:
     is_notification = isinstance(parsed, dict) and "id" not in parsed
     # In proxy mode with stdio/SSE transport, forwarding notifications would await a
     # response that the upstream will never send, causing a timeout. Skip processing.
-    if is_notification and mcp_config.mode == "proxy" and mcp_config.upstream_transport in {"stdio", "sse"}:
+    if is_notification and mcp_config.mode == "proxy":
         return Response(status_code=200)
     result = await _process_single_mcp_request(parsed, body, request)
     if is_notification:
