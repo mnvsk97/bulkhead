@@ -776,3 +776,148 @@ def test_proxy_http_buffers_streaming_tool_result() -> None:
     body = resp.json()
     assert body["result"]["content"][0]["text"] == "Hello from upstream tool"
     assert mcp_proxy.mcp_stats.upstream_successes == 1
+
+
+# ---------------------------------------------------------------------------
+# Task 7: MCPStats extended fields
+# ---------------------------------------------------------------------------
+
+def test_method_counts_tracked() -> None:
+    reset_state(mode="mock")
+    payload_tools_list = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "tools/list"}).encode()
+    payload_tools_call = json.dumps({
+        "jsonrpc": "2.0", "id": 2, "method": "tools/call",
+        "params": {"name": "echo", "arguments": {}},
+    }).encode()
+    client.post("/mcp", content=payload_tools_list, headers={"content-type": "application/json"})
+    client.post("/mcp", content=payload_tools_list, headers={"content-type": "application/json"})
+    client.post("/mcp", content=payload_tools_call, headers={"content-type": "application/json"})
+    assert mcp_proxy.mcp_stats.method_counts["tools/list"] == 2
+    assert mcp_proxy.mcp_stats.method_counts["tools/call"] == 1
+
+
+def test_tool_successes_by_name_tracked() -> None:
+    reset_state(mode="mock")
+    for tool_name in ("echo", "echo", "get_time"):
+        payload = json.dumps({
+            "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+            "params": {"name": tool_name, "arguments": {}},
+        }).encode()
+        client.post("/mcp", content=payload, headers={"content-type": "application/json"})
+    assert mcp_proxy.mcp_stats.tool_successes_by_name["echo"] == 2
+    assert mcp_proxy.mcp_stats.tool_successes_by_name["get_time"] == 1
+    assert mcp_proxy.mcp_stats.tool_failures_by_name["echo"] == 0
+
+
+def test_tool_failures_by_name_tracked_on_fault_injection() -> None:
+    reset_state(fail_rate=1.0)
+    mcp_proxy.mcp_config = mcp_proxy.MCPConfig(
+        mode="mock", fail_rate=1.0, fault_codes=(500,)
+    )
+    payload = json.dumps({
+        "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+        "params": {"name": "broken_tool", "arguments": {}},
+    }).encode()
+    client.post("/mcp", content=payload, headers={"content-type": "application/json"})
+    assert mcp_proxy.mcp_stats.tool_failures_by_name["broken_tool"] == 1
+    assert mcp_proxy.mcp_stats.tool_successes_by_name["broken_tool"] == 0
+
+
+def test_resource_reads_by_uri_tracked() -> None:
+    reset_state(mode="mock")
+    uri = "file:///example/readme.txt"
+    for _ in range(3):
+        payload = json.dumps({
+            "jsonrpc": "2.0", "id": 1, "method": "resources/read",
+            "params": {"uri": uri},
+        }).encode()
+        client.post("/mcp", content=payload, headers={"content-type": "application/json"})
+    assert mcp_proxy.mcp_stats.resource_reads_by_uri[uri] == 3
+    assert mcp_proxy.mcp_stats.resource_failures_by_uri[uri] == 0
+
+
+def test_resource_failures_by_uri_tracked_on_fault_injection() -> None:
+    mcp_proxy.mcp_config = mcp_proxy.MCPConfig(
+        mode="mock", fail_rate=1.0, fault_codes=(500,)
+    )
+    mcp_proxy.mcp_stats = mcp_proxy.MCPStats()
+    uri = "file:///secret/data.json"
+    payload = json.dumps({
+        "jsonrpc": "2.0", "id": 1, "method": "resources/read",
+        "params": {"uri": uri},
+    }).encode()
+    client.post("/mcp", content=payload, headers={"content-type": "application/json"})
+    assert mcp_proxy.mcp_stats.resource_failures_by_uri[uri] == 1
+    assert mcp_proxy.mcp_stats.resource_reads_by_uri[uri] == 0
+
+
+def test_scorecard_includes_method_counts() -> None:
+    reset_state(mode="mock")
+    payload = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize",
+                          "params": {"protocolVersion": "2024-11-05", "capabilities": {}}}).encode()
+    client.post("/mcp", content=payload, headers={"content-type": "application/json"})
+    resp = client.get("/_agentbreak/mcp/scorecard")
+    data = resp.json()
+    assert "method_counts" in data
+    assert data["method_counts"]["initialize"] == 1
+
+
+def test_scorecard_includes_tool_stats() -> None:
+    reset_state(mode="mock")
+    payload = json.dumps({
+        "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+        "params": {"name": "echo", "arguments": {"text": "hi"}},
+    }).encode()
+    client.post("/mcp", content=payload, headers={"content-type": "application/json"})
+    resp = client.get("/_agentbreak/mcp/scorecard")
+    data = resp.json()
+    assert "tool_successes_by_name" in data
+    assert "tool_failures_by_name" in data
+    assert data["tool_successes_by_name"]["echo"] == 1
+
+
+def test_scorecard_includes_resource_stats() -> None:
+    reset_state(mode="mock")
+    uri = "file:///example/data.json"
+    payload = json.dumps({
+        "jsonrpc": "2.0", "id": 1, "method": "resources/read",
+        "params": {"uri": uri},
+    }).encode()
+    client.post("/mcp", content=payload, headers={"content-type": "application/json"})
+    resp = client.get("/_agentbreak/mcp/scorecard")
+    data = resp.json()
+    assert "resource_reads_by_uri" in data
+    assert "resource_failures_by_uri" in data
+    assert data["resource_reads_by_uri"][uri] == 1
+
+
+def test_proxy_mode_tool_successes_tracked() -> None:
+    reset_state(mode="proxy", upstream_url="http://upstream.example")
+    upstream_result = {
+        "jsonrpc": "2.0", "id": 1,
+        "result": {"content": [{"type": "text", "text": "ok"}], "isError": False},
+    }
+    with patch("httpx.AsyncClient", return_value=_make_mock_async_client(upstream_result)):
+        payload = json.dumps({
+            "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+            "params": {"name": "my_tool", "arguments": {}},
+        }).encode()
+        client.post("/mcp", content=payload, headers={"content-type": "application/json"})
+    assert mcp_proxy.mcp_stats.tool_successes_by_name["my_tool"] == 1
+    assert mcp_proxy.mcp_stats.tool_failures_by_name["my_tool"] == 0
+
+
+def test_proxy_mode_tool_failures_tracked_on_error_response() -> None:
+    reset_state(mode="proxy", upstream_url="http://upstream.example")
+    upstream_result = {
+        "jsonrpc": "2.0", "id": 1,
+        "error": {"code": -32603, "message": "upstream failed"},
+    }
+    with patch("httpx.AsyncClient", return_value=_make_mock_async_client(upstream_result)):
+        payload = json.dumps({
+            "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+            "params": {"name": "failing_tool", "arguments": {}},
+        }).encode()
+        client.post("/mcp", content=payload, headers={"content-type": "application/json"})
+    assert mcp_proxy.mcp_stats.tool_failures_by_name["failing_tool"] == 1
+    assert mcp_proxy.mcp_stats.tool_successes_by_name["failing_tool"] == 0

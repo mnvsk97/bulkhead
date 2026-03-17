@@ -123,6 +123,14 @@ class MCPStats:
     tool_calls: int = 0
     resource_reads: int = 0
     init_requests: int = 0
+    # Per-method call counts (e.g. {"tools/call": 5, "initialize": 1})
+    method_counts: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    # Per-tool-name success and failure counts
+    tool_successes_by_name: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    tool_failures_by_name: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    # Per-URI resource read success and failure counts
+    resource_reads_by_uri: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    resource_failures_by_uri: dict[str, int] = field(default_factory=lambda: defaultdict(int))
     seen_fingerprints: dict[str, int] = field(default_factory=lambda: defaultdict(int))
     recent_requests: list[dict[str, Any]] = field(default_factory=list)
 
@@ -335,6 +343,7 @@ def mcp_error_response(request_id: str | int | None, error: MCPError) -> dict[st
 
 def record_mcp_request(mcp_req: MCPRequest, raw_body: bytes) -> None:
     mcp_stats.total_requests += 1
+    mcp_stats.method_counts[mcp_req.method] += 1
 
     fp = fingerprint_mcp_request(mcp_req)
     mcp_stats.seen_fingerprints[fp] += 1
@@ -426,6 +435,31 @@ def filter_headers(headers: httpx.Headers) -> dict[str, str]:
     return {key: value for key, value in headers.items() if key.lower() not in skip}
 
 
+def _is_success_response(response: JSONResponse) -> bool:
+    """Return True if the JSON-RPC response body does not contain an 'error' field."""
+    try:
+        data = json.loads(response.body)
+        return "error" not in data
+    except Exception:
+        return False
+
+
+def _record_method_outcome(mcp_req: MCPRequest, is_success: bool) -> None:
+    """Update per-tool and per-URI success/failure counters."""
+    if mcp_req.method == "tools/call":
+        tool_name = (mcp_req.params or {}).get("name", "unknown")
+        if is_success:
+            mcp_stats.tool_successes_by_name[tool_name] += 1
+        else:
+            mcp_stats.tool_failures_by_name[tool_name] += 1
+    elif mcp_req.method == "resources/read":
+        uri = (mcp_req.params or {}).get("uri", "unknown")
+        if is_success:
+            mcp_stats.resource_reads_by_uri[uri] += 1
+        else:
+            mcp_stats.resource_failures_by_uri[uri] += 1
+
+
 def scorecard_data() -> dict[str, Any]:
     score = 100
     score -= mcp_stats.injected_faults * 3
@@ -450,6 +484,11 @@ def scorecard_data() -> dict[str, Any]:
         "tool_calls": mcp_stats.tool_calls,
         "resource_reads": mcp_stats.resource_reads,
         "init_requests": mcp_stats.init_requests,
+        "method_counts": dict(mcp_stats.method_counts),
+        "tool_successes_by_name": dict(mcp_stats.tool_successes_by_name),
+        "tool_failures_by_name": dict(mcp_stats.tool_failures_by_name),
+        "resource_reads_by_uri": dict(mcp_stats.resource_reads_by_uri),
+        "resource_failures_by_uri": dict(mcp_stats.resource_failures_by_uri),
         "run_outcome": outcome,
         "resilience_score": score,
     }
@@ -470,6 +509,26 @@ def print_scorecard() -> None:
         f"Upstream Failures: {data['upstream_failures']}",
         f"Duplicate Requests: {data['duplicate_requests']}",
         f"Suspected Loops: {data['suspected_loops']}",
+    ]
+    if data["method_counts"]:
+        lines.append("Method Counts:")
+        for method, count in sorted(data["method_counts"].items()):
+            lines.append(f"  {method}: {count}")
+    if data["tool_successes_by_name"] or data["tool_failures_by_name"]:
+        all_tools = set(data["tool_successes_by_name"]) | set(data["tool_failures_by_name"])
+        lines.append("Tool Call Results:")
+        for tool in sorted(all_tools):
+            ok = data["tool_successes_by_name"].get(tool, 0)
+            fail = data["tool_failures_by_name"].get(tool, 0)
+            lines.append(f"  {tool}: {ok} ok, {fail} fail")
+    if data["resource_reads_by_uri"] or data["resource_failures_by_uri"]:
+        all_uris = set(data["resource_reads_by_uri"]) | set(data["resource_failures_by_uri"])
+        lines.append("Resource Read Results:")
+        for uri in sorted(all_uris):
+            ok = data["resource_reads_by_uri"].get(uri, 0)
+            fail = data["resource_failures_by_uri"].get(uri, 0)
+            lines.append(f"  {uri}: {ok} ok, {fail} fail")
+    lines += [
         f"Run Outcome: {data['run_outcome']}",
         f"Resilience Score: {data['resilience_score']}/100",
         "",
@@ -596,6 +655,7 @@ async def proxy_mcp(request: Request) -> JSONResponse:
         error = pick_mcp_error()
         mcp_stats.injected_faults += 1
         mcp_stats.upstream_failures += 1
+        _record_method_outcome(mcp_req, False)
         return JSONResponse(
             status_code=200,
             content=mcp_error_response(mcp_req.id, error),
@@ -606,6 +666,7 @@ async def proxy_mcp(request: Request) -> JSONResponse:
     if mcp_config.mode == "mock":
         mcp_stats.upstream_successes += 1
         result = generate_mock_result(mcp_req.method, mcp_req.params, mcp_config)
+        _record_method_outcome(mcp_req, True)
         return JSONResponse(
             status_code=200,
             content=MCPResponse(id=mcp_req.id, result=result).to_dict(),
@@ -613,11 +674,13 @@ async def proxy_mcp(request: Request) -> JSONResponse:
 
     transport = mcp_config.upstream_transport
     if transport == "stdio":
-        return await _forward_stdio(mcp_req)
+        response = await _forward_stdio(mcp_req)
     elif transport == "sse":
-        return await _forward_sse(mcp_req)
+        response = await _forward_sse(mcp_req)
     else:
-        return await _forward_http(mcp_req, body, request)
+        response = await _forward_http(mcp_req, body, request)
+    _record_method_outcome(mcp_req, _is_success_response(response))
+    return response
 
 
 @app.get("/healthz")

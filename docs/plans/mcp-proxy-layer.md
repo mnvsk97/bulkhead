@@ -88,15 +88,15 @@ MCP is a JSON-RPC 2.0 protocol used by Claude Code and other AI tools to interac
 
 ### Task 7: Implement MCP scorecard and observability
 
-- [ ] Extend `Stats` dataclass with MCP-specific fields
-- [ ] Track MCP method call counts (initialize, tools/list, tools/call, etc.)
-- [ ] Track tool call successes/failures by tool name
-- [ ] Track resource read successes/failures by URI pattern
-- [ ] Add duplicate tool call detection
-- [ ] Add suspected loop detection for repeated tool calls
-- [ ] Create `/_agentbreak/mcp/scorecard` endpoint
-- [ ] Create `/_agentbreak/mcp/tool-calls` endpoint for recent tool call history
-- [ ] Update `print_scorecard()` to include MCP stats
+- [x] Extend `Stats` dataclass with MCP-specific fields
+- [x] Track MCP method call counts (initialize, tools/list, tools/call, etc.)
+- [x] Track tool call successes/failures by tool name
+- [x] Track resource read successes/failures by URI pattern
+- [x] Add duplicate tool call detection
+- [x] Add suspected loop detection for repeated tool calls
+- [x] Create `/_agentbreak/mcp/scorecard` endpoint
+- [x] Create `/_agentbreak/mcp/tool-calls` endpoint for recent tool call history
+- [x] Update `print_scorecard()` to include MCP stats
 
 ### Task 8: Add MCP-specific fault scenarios
 
