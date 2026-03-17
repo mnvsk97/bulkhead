@@ -14,7 +14,7 @@ import httpx
 import typer
 import uvicorn
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from agentbreak.mcp_protocol import (
     INTERNAL_ERROR,
@@ -709,7 +709,11 @@ async def proxy_mcp(request: Request) -> JSONResponse:
         ]
         return JSONResponse(status_code=200, content=non_notification_responses)
 
+    # Per JSON-RPC 2.0, notifications (requests with no "id") must not receive a response.
+    is_notification = isinstance(parsed, dict) and "id" not in parsed
     result = await _process_single_mcp_request(parsed, body, request)
+    if is_notification:
+        return Response(status_code=200)
     return JSONResponse(status_code=200, content=result)
 
 

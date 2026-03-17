@@ -104,6 +104,7 @@ class Stats:
 config: Config | None = None
 stats = Stats()
 app = FastAPI(title="agentbreak")
+_mcp_app_mounted = False
 
 
 @cli.callback()
@@ -604,7 +605,10 @@ def start(
         _mcp_proxy._sse_transport = None
         _mcp_proxy._upstream_http_client = None
         _mcp_proxy._response_cache = {}
-        app.mount("/", _mcp_proxy.app)
+        global _mcp_app_mounted
+        if not _mcp_app_mounted:
+            app.mount("/", _mcp_proxy.app)
+            _mcp_app_mounted = True
     install_signal_handlers()
     try:
         uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
