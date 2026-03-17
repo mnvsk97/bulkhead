@@ -94,13 +94,13 @@ def test_invalid_json_returns_parse_error() -> None:
     assert body["error"]["code"] == -32700
 
 
-def test_missing_method_returns_parse_error() -> None:
+def test_missing_method_returns_invalid_request() -> None:
     reset_state()
     payload = json.dumps({"jsonrpc": "2.0", "id": 1}).encode()
     resp = client.post("/mcp", content=payload, headers={"content-type": "application/json"})
     assert resp.status_code == 200
     body = resp.json()
-    assert body["error"]["code"] == -32700
+    assert body["error"]["code"] == -32600  # INVALID_REQUEST, not PARSE_ERROR
 
 
 # ---------------------------------------------------------------------------

@@ -406,17 +406,17 @@ class TestParseErrors:
         body = resp.json()
         assert body["error"]["code"] == -32700
 
-    def test_missing_method_returns_parse_error(self) -> None:
+    def test_missing_method_returns_invalid_request(self) -> None:
         payload = json.dumps({"jsonrpc": "2.0", "id": 1}).encode()
         resp = client.post("/mcp", content=payload, headers=_MCP_HEADERS)
         body = resp.json()
-        assert body["error"]["code"] == -32700
+        assert body["error"]["code"] == -32600  # INVALID_REQUEST, not PARSE_ERROR
 
-    def test_wrong_jsonrpc_version_returns_parse_error(self) -> None:
+    def test_wrong_jsonrpc_version_returns_invalid_request(self) -> None:
         payload = json.dumps({"jsonrpc": "1.0", "id": 1, "method": "tools/list"}).encode()
         resp = client.post("/mcp", content=payload, headers=_MCP_HEADERS)
         body = resp.json()
-        assert body["error"]["code"] == -32700
+        assert body["error"]["code"] == -32600  # INVALID_REQUEST, not PARSE_ERROR
 
     def test_parse_error_response_has_null_id(self) -> None:
         resp = client.post("/mcp", content=b"bad", headers=_MCP_HEADERS)

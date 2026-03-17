@@ -21,6 +21,7 @@ from agentbreak.mcp_protocol import (
     INVALID_REQUEST,
     MCP_TOOL_ERROR,
     METHOD_NOT_FOUND,
+    PARSE_ERROR,
     MCPError,
     MCPRequest,
     MCPResponse,
@@ -550,6 +551,12 @@ async def _forward_sse(mcp_req: MCPRequest) -> JSONResponse:
         mcp_stats.upstream_successes += 1
         return JSONResponse(status_code=200, content=result)
     except (TimeoutError, RuntimeError, OSError) as exc:
+        # If the SSE listener task has died, reset the singleton so the next
+        # request creates a fresh transport and reconnects.
+        if _sse_transport is not None and (
+            _sse_transport._sse_task is None or _sse_transport._sse_task.done()
+        ):
+            _sse_transport = None
         mcp_stats.upstream_failures += 1
         return JSONResponse(
             status_code=200,
@@ -582,7 +589,7 @@ async def _process_single_mcp_request(
         mcp_stats.parse_time_ms += parse_elapsed
         elapsed = (time.monotonic() - start_time) * 1000
         mcp_stats.total_processing_time_ms += elapsed
-        return mcp_error_response(raw.get("id"), MCPError(code=-32700, message=f"Parse error: {exc}"))
+        return mcp_error_response(raw.get("id"), MCPError(code=INVALID_REQUEST, message=f"Invalid Request: {exc}"))
     mcp_stats.parse_time_ms += (time.monotonic() - parse_start) * 1000
 
     record_mcp_request(mcp_req, body)
@@ -674,7 +681,7 @@ async def proxy_mcp(request: Request) -> JSONResponse:
             status_code=200,
             content=mcp_error_response(
                 None,
-                MCPError(code=-32700, message=f"Parse error: {exc}"),
+                MCPError(code=PARSE_ERROR, message=f"Parse error: {exc}"),
             ),
         )
 
@@ -693,7 +700,14 @@ async def proxy_mcp(request: Request) -> JSONResponse:
             for item in parsed
         ]
         responses = await asyncio.gather(*tasks)
-        return JSONResponse(status_code=200, content=list(responses))
+        # Per JSON-RPC 2.0, notifications (items with no "id" field) must not
+        # receive a response. Filter them out of the batch response array.
+        non_notification_responses = [
+            resp
+            for item, resp in zip(parsed, responses)
+            if isinstance(item, dict) and "id" in item
+        ]
+        return JSONResponse(status_code=200, content=non_notification_responses)
 
     result = await _process_single_mcp_request(parsed, body, request)
     return JSONResponse(status_code=200, content=result)
@@ -820,7 +834,7 @@ def start(
 
     install_signal_handlers()
     try:
-        uvicorn.run(app, host="0.0.0.0", port=port, log_level="warning")
+        uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
     finally:
         print_scorecard()
 

@@ -155,7 +155,10 @@ def parse_error_codes(raw: str) -> tuple[int, ...]:
         value = item.strip()
         if not value:
             continue
-        code = int(value)
+        try:
+            code = int(value)
+        except ValueError:
+            raise typer.BadParameter(f"Invalid error code {value!r}: must be an integer.")
         if code not in SUPPORTED_ERROR_CODES:
             raise typer.BadParameter(
                 f"Unsupported error code {code}. Supported: {', '.join(str(c) for c in SUPPORTED_ERROR_CODES)}"
@@ -597,10 +600,14 @@ def start(
             seed=resolved_seed,
         )
         _mcp_proxy.mcp_stats = _mcp_proxy.MCPStats()
+        _mcp_proxy._stdio_transport = None
+        _mcp_proxy._sse_transport = None
+        _mcp_proxy._upstream_http_client = None
+        _mcp_proxy._response_cache = {}
         app.mount("/", _mcp_proxy.app)
     install_signal_handlers()
     try:
-        uvicorn.run(app, host="0.0.0.0", port=port, log_level="warning")
+        uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
     finally:
         print_scorecard()
         if resolved_mcp_mode != "disabled":
