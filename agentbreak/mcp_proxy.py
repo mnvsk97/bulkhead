@@ -623,7 +623,6 @@ async def _process_single_mcp_request(
         mcp_stats.cache_lookup_time_ms += (time.monotonic() - cache_start) * 1000
         if cached is not None:
             mcp_stats.cache_hits += 1
-            mcp_stats.upstream_successes += 1
             _record_method_outcome(mcp_req, True)
             # Phase 5: Serialize response (for cache hits)
             serialize_start = time.monotonic()
@@ -656,7 +655,7 @@ async def _process_single_mcp_request(
         is_success = "error" not in resp_dict
         # Populate cache for successful list responses.
         if is_success and mcp_req.method in _CACHEABLE_METHODS:
-            result_payload = resp_dict.get("result") or {}
+            result_payload = resp_dict.get("result") if resp_dict.get("result") is not None else {}
             _put_in_cache(mcp_req.method, mcp_req.params, result_payload)
         _record_method_outcome(mcp_req, is_success)
         mcp_stats.upstream_time_ms += (time.monotonic() - upstream_start) * 1000
@@ -727,14 +726,12 @@ async def proxy_mcp(request: Request) -> JSONResponse:
         return JSONResponse(status_code=200, content=non_notification_responses)
 
     # Per JSON-RPC 2.0, notifications (requests with no "id") must not receive a response.
+    # Skip processing entirely — forwarding notifications in proxy mode would await a
+    # response the upstream will never send, and processing them in mock mode inflates stats.
     is_notification = isinstance(parsed, dict) and "id" not in parsed
-    # In proxy mode with stdio/SSE transport, forwarding notifications would await a
-    # response that the upstream will never send, causing a timeout. Skip processing.
-    if is_notification and mcp_config.mode == "proxy":
-        return Response(status_code=200)
-    result = await _process_single_mcp_request(parsed, body, request)
     if is_notification:
         return Response(status_code=200)
+    result = await _process_single_mcp_request(parsed, body, request)
     return JSONResponse(status_code=200, content=result)
 
 

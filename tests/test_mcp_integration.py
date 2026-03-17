@@ -50,6 +50,7 @@ def _reset(
         resource_failures_by_uri=defaultdict(int),
         seen_fingerprints=defaultdict(int),
     )
+    mcp_proxy._response_cache = {}
 
 
 def _post(method: str, params: dict[str, Any] | None = None, req_id: int = 1) -> Any:
