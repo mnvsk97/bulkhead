@@ -94,16 +94,6 @@ def test_default_timeout_value() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Backward-compat aliases in mcp_proxy
-# ---------------------------------------------------------------------------
-
-def test_backward_compat_aliases() -> None:
-    from agentbreak import mcp_proxy
-    assert mcp_proxy.StdioTransportManager is StdioTransport
-    assert mcp_proxy.SSETransportManager is SSETransport
-
-
-# ---------------------------------------------------------------------------
 # StdioTransport
 # ---------------------------------------------------------------------------
 

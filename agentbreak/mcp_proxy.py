@@ -44,10 +44,6 @@ cli = typer.Typer(add_completion=False, help="MCP JSON-RPC 2.0 proxy with fault 
 # Default timeout for upstream requests (seconds) — re-exported from mcp_transport.
 DEFAULT_UPSTREAM_TIMEOUT = DEFAULT_TRANSPORT_TIMEOUT
 
-# Backward-compat aliases so existing code that references the old class names works.
-StdioTransportManager = StdioTransport
-SSETransportManager = SSETransport
-
 # Supported "HTTP-style" fault codes that map to MCP error codes.
 # These mirror the OpenAI proxy codes so MCP scenarios can reuse the same config.
 SUPPORTED_FAULT_CODES = (400, 401, 403, 404, 413, 429, 500, 503)
@@ -175,8 +171,8 @@ class MCPStats:
 mcp_config: MCPConfig | None = None
 mcp_stats = MCPStats()
 # Transport managers are created per run and cleaned up on shutdown.
-_stdio_transport: StdioTransportManager | None = None
-_sse_transport: SSETransportManager | None = None
+_stdio_transport: StdioTransport | None = None
+_sse_transport: SSETransport | None = None
 # Shared HTTP client with connection pooling (replaces per-request client creation).
 _upstream_http_client: httpx.AsyncClient | None = None
 # Response cache: maps cache key -> (result_dict, expiry_timestamp).
@@ -199,7 +195,8 @@ def should_inject(probability: float) -> bool:
 def pick_mcp_error() -> MCPError:
     assert mcp_config is not None
     http_code = random.choice(mcp_config.fault_codes)
-    mcp_code, message = _HTTP_TO_MCP[http_code]
+    entry = _HTTP_TO_MCP.get(http_code, (INTERNAL_ERROR, f"Fault injected by AgentBreak (code {http_code})."))
+    mcp_code, message = entry
     return MCPError(code=mcp_code, message=message)
 
 
@@ -337,14 +334,6 @@ def filter_headers(headers: httpx.Headers) -> dict[str, str]:
     skip = {"host", "content-length"}
     return {key: value for key, value in headers.items() if key.lower() not in skip}
 
-
-def _is_success_response(response: JSONResponse) -> bool:
-    """Return True if the JSON-RPC response body does not contain an 'error' field."""
-    try:
-        data = json.loads(response.body)
-        return "error" not in data
-    except Exception:
-        return False
 
 
 def _record_method_outcome(mcp_req: MCPRequest, is_success: bool) -> None:
@@ -486,10 +475,6 @@ async def _forward_http(
     assert mcp_config is not None
     client = await _get_upstream_http_client()
     try:
-        # Track connection pool stats
-        mcp_stats.http_pool_size = client._limits.max_connections
-        mcp_stats.http_pool_active = len(client._connections)
-
         response = await client.post(
             f"{mcp_config.upstream_url.rstrip('/')}/mcp",
             content=body,
@@ -530,7 +515,7 @@ async def _forward_stdio(mcp_req: MCPRequest) -> JSONResponse:
     global _stdio_transport
     assert mcp_config is not None
     if _stdio_transport is None:
-        _stdio_transport = StdioTransportManager(
+        _stdio_transport = StdioTransport(
             command=mcp_config.upstream_command,
             timeout=mcp_config.upstream_timeout,
         )
@@ -557,7 +542,7 @@ async def _forward_sse(mcp_req: MCPRequest) -> JSONResponse:
     global _sse_transport
     assert mcp_config is not None
     if _sse_transport is None:
-        _sse_transport = SSETransportManager(
+        _sse_transport = SSETransport(
             base_url=mcp_config.upstream_url,
             timeout=mcp_config.upstream_timeout,
         )

@@ -531,7 +531,8 @@ def test_resolve_scenario_mcp_resource_unavailable_includes_404() -> None:
     assert 404 in sc["mcp_error_codes"]
 
 
-def test_start_command_with_mcp_slow_tools_scenario(tmp_path: Path) -> None:
+def test_start_command_with_mcp_slow_tools_scenario(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(main.uvicorn, "run", lambda *a, **kw: None)
     from typer.testing import CliRunner
     runner = CliRunner()
     result = runner.invoke(

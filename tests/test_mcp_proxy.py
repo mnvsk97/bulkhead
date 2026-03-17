@@ -574,13 +574,13 @@ def test_mock_custom_resources_config() -> None:
 
 
 # ---------------------------------------------------------------------------
-# StdioTransportManager unit tests
+# StdioTransport unit tests
 # ---------------------------------------------------------------------------
 
-class TestStdioTransportManager:
+class TestStdioTransport:
     def test_requires_nonempty_command(self) -> None:
         with pytest.raises(ValueError, match="upstream_command"):
-            mcp_proxy.StdioTransportManager(command=())
+            mcp_proxy.StdioTransport(command=())
 
     def test_sends_request_and_receives_response(self) -> None:
         """Spawn a real Python subprocess that echoes JSON-RPC responses."""
@@ -594,7 +594,7 @@ class TestStdioTransportManager:
         )
 
         async def _run() -> None:
-            transport = mcp_proxy.StdioTransportManager(
+            transport = mcp_proxy.StdioTransport(
                 command=("python", "-c", echo_server),
                 timeout=10.0,
             )
@@ -611,7 +611,7 @@ class TestStdioTransportManager:
         blocking_server = "import time; time.sleep(60)\n"
 
         async def _run() -> None:
-            transport = mcp_proxy.StdioTransportManager(
+            transport = mcp_proxy.StdioTransport(
                 command=("python", "-c", blocking_server),
                 timeout=0.1,
             )
@@ -635,7 +635,7 @@ class TestStdioTransportManager:
         )
 
         async def _run() -> None:
-            transport = mcp_proxy.StdioTransportManager(
+            transport = mcp_proxy.StdioTransport(
                 command=("python", "-c", echo_server),
                 timeout=10.0,
             )
@@ -729,19 +729,19 @@ def test_proxy_stdio_bad_command_returns_error() -> None:
 
 
 # ---------------------------------------------------------------------------
-# SSETransportManager unit tests
+# SSETransport unit tests
 # ---------------------------------------------------------------------------
 
-class TestSSETransportManager:
+class TestSSETransport:
     def test_requires_nonempty_base_url(self) -> None:
         # Construction should succeed; failure only occurs on start().
-        mgr = mcp_proxy.SSETransportManager(base_url="http://localhost:9999")
+        mgr = mcp_proxy.SSETransport(base_url="http://localhost:9999")
         assert mgr.base_url == "http://localhost:9999"
 
     def test_timeout_when_sse_server_unavailable(self) -> None:
         """If SSE server is not reachable, start() should raise RuntimeError."""
         async def _run() -> None:
-            mgr = mcp_proxy.SSETransportManager(
+            mgr = mcp_proxy.SSETransport(
                 base_url="http://127.0.0.1:19999",  # nothing listening here
                 timeout=0.1,
             )

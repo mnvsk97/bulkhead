@@ -143,6 +143,10 @@ class StdioTransport(MCPTransport):
                 await asyncio.wait_for(self._process.wait(), timeout=5.0)
             except Exception:
                 self._process.kill()
+                try:
+                    await asyncio.wait_for(self._process.wait(), timeout=2.0)
+                except Exception:
+                    pass
             self._process = None
         self._started = False
 
@@ -216,7 +220,7 @@ class SSETransport(MCPTransport):
             max_keepalive_connections=self.max_keepalive_connections,
         )
         self._client = httpx.AsyncClient(timeout=self.timeout, limits=limits)
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         self._sse_task = loop.create_task(self._listen_sse())
         # Wait up to 5 seconds for the server to send the endpoint URL.
         for _ in range(50):
@@ -233,7 +237,7 @@ class SSETransport(MCPTransport):
         if self._endpoint_url is None:
             raise RuntimeError("SSE endpoint URL is not available")
         assert self._client is not None
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         future: asyncio.Future[dict[str, Any]] = loop.create_future()
         self._pending[request.id] = future
         try:
@@ -248,6 +252,9 @@ class SSETransport(MCPTransport):
             raise TimeoutError(
                 f"SSE upstream timed out after {self.timeout}s"
             ) from exc
+        except Exception:
+            self._pending.pop(request.id, None)
+            raise
 
     async def stop(self) -> None:
         """Cancel the SSE listener and close the HTTP client."""
