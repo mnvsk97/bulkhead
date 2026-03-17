@@ -35,13 +35,13 @@ MCP is a JSON-RPC 2.0 protocol used by Claude Code and other AI tools to interac
 
 ### Task 2: Implement MCP message parsing and fingerprinting
 
-- [ ] Create `agentbreak/mcp_protocol.py` with MCP JSON-RPC 2.0 message types
-- [ ] Implement `MCPRequest` dataclass with id, method, params
-- [ ] Implement `MCPResponse` dataclass with id, result, error
-- [ ] Implement `MCPError` dataclass with code, message, data
-- [ ] Create fingerprint function for MCP tool calls based on method + params
-- [ ] Add unit tests in `tests/test_mcp_protocol.py`
-- [ ] Validate JSON-RPC 2.0 message structure parsing
+- [x] Create `agentbreak/mcp_protocol.py` with MCP JSON-RPC 2.0 message types
+- [x] Implement `MCPRequest` dataclass with id, method, params
+- [x] Implement `MCPResponse` dataclass with id, result, error
+- [x] Implement `MCPError` dataclass with code, message, data
+- [x] Create fingerprint function for MCP tool calls based on method + params
+- [x] Add unit tests in `tests/test_mcp_protocol.py`
+- [x] Validate JSON-RPC 2.0 message structure parsing
 
 ### Task 3: Implement MCP proxy core logic
 
