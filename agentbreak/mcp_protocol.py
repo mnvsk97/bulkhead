@@ -46,6 +46,8 @@ class MCPRequest:
     id: str | int | None = None
     params: dict[str, Any] | None = None
     jsonrpc: str = field(default=JSONRPC_VERSION)
+    # Cached serialized form — avoids redundant JSON encode when forwarding to upstream.
+    _json_bytes: bytes | None = field(default=None, repr=False, compare=False, init=False)
 
     def to_dict(self) -> dict[str, Any]:
         result: dict[str, Any] = {"jsonrpc": self.jsonrpc, "method": self.method}
@@ -54,6 +56,12 @@ class MCPRequest:
         if self.params is not None:
             result["params"] = self.params
         return result
+
+    def to_json_bytes(self) -> bytes:
+        """Return the JSON-encoded request bytes, using a cached copy when available."""
+        if self._json_bytes is None:
+            self._json_bytes = json.dumps(self.to_dict()).encode("utf-8")
+        return self._json_bytes
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> MCPRequest:
@@ -72,7 +80,10 @@ class MCPRequest:
 
     @classmethod
     def from_json(cls, data: str | bytes) -> MCPRequest:
-        return cls.from_dict(json.loads(data))
+        req = cls.from_dict(json.loads(data))
+        if isinstance(data, bytes):
+            req._json_bytes = data  # cache original bytes to skip re-serialization
+        return req
 
 
 @dataclass

@@ -5,6 +5,7 @@ import json
 import random
 import signal
 import sys
+import time
 from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any
@@ -124,6 +125,8 @@ class MCPConfig:
     mock_tools: tuple[dict[str, Any], ...] = _DEFAULT_MOCK_TOOLS
     mock_resources: tuple[dict[str, Any], ...] = _DEFAULT_MOCK_RESOURCES
     mock_prompts: tuple[dict[str, Any], ...] = _DEFAULT_MOCK_PROMPTS
+    # TTL (seconds) for caching list-style responses (resources/list, tools/list, etc.)
+    cache_ttl: float = 60.0
 
 
 @dataclass
@@ -138,6 +141,17 @@ class MCPStats:
     tool_calls: int = 0
     resource_reads: int = 0
     init_requests: int = 0
+    # Cache stats
+    cache_hits: int = 0
+    cache_misses: int = 0
+    # Proxy overhead metrics (milliseconds)
+    total_processing_time_ms: float = 0.0
+    # Detailed overhead breakdown (milliseconds)
+    parse_time_ms: float = 0.0
+    fault_check_time_ms: float = 0.0
+    cache_lookup_time_ms: float = 0.0
+    upstream_time_ms: float = 0.0
+    serialization_time_ms: float = 0.0
     # Per-method call counts (e.g. {"tools/call": 5, "initialize": 1})
     method_counts: dict[str, int] = field(default_factory=lambda: defaultdict(int))
     # Per-tool-name success and failure counts
@@ -148,6 +162,12 @@ class MCPStats:
     resource_failures_by_uri: dict[str, int] = field(default_factory=lambda: defaultdict(int))
     seen_fingerprints: dict[str, int] = field(default_factory=lambda: defaultdict(int))
     recent_requests: list[dict[str, Any]] = field(default_factory=list)
+    # Connection pool stats
+    http_pool_size: int = 0
+    http_pool_active: int = 0
+    # Throughput metrics
+    requests_per_second: float = 0.0
+    session_start_time: float = field(default_factory=time.monotonic)
 
 
 
@@ -157,6 +177,14 @@ mcp_stats = MCPStats()
 # Transport managers are created per run and cleaned up on shutdown.
 _stdio_transport: StdioTransportManager | None = None
 _sse_transport: SSETransportManager | None = None
+# Shared HTTP client with connection pooling (replaces per-request client creation).
+_upstream_http_client: httpx.AsyncClient | None = None
+# Response cache: maps cache key -> (result_dict, expiry_timestamp).
+_response_cache: dict[str, tuple[dict[str, Any], float]] = {}
+
+# Methods whose responses can be safely cached (read-only, rarely change).
+_CACHEABLE_METHODS = frozenset({"resources/list", "tools/list", "prompts/list"})
+
 app = FastAPI(title="agentbreak-mcp")
 
 
@@ -220,6 +248,43 @@ async def maybe_delay() -> None:
     mcp_stats.latency_injections += 1
     delay = random.uniform(mcp_config.latency_min, mcp_config.latency_max)
     await asyncio.sleep(delay)
+
+
+def _cache_key(method: str, params: dict[str, Any] | None) -> str:
+    params_str = json.dumps(params, sort_keys=True) if params else ""
+    return f"{method}:{params_str}"
+
+
+def _get_from_cache(method: str, params: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Return cached result if present and not expired, else None."""
+    key = _cache_key(method, params)
+    entry = _response_cache.get(key)
+    if entry is None:
+        return None
+    result, expiry = entry
+    if time.monotonic() > expiry:
+        del _response_cache[key]
+        return None
+    return result
+
+
+def _put_in_cache(method: str, params: dict[str, Any] | None, result: dict[str, Any]) -> None:
+    """Store a result in the response cache with the configured TTL."""
+    assert mcp_config is not None
+    key = _cache_key(method, params)
+    _response_cache[key] = (result, time.monotonic() + mcp_config.cache_ttl)
+
+
+async def _get_upstream_http_client() -> httpx.AsyncClient:
+    """Return the shared upstream HTTP client, creating it on first call."""
+    global _upstream_http_client
+    assert mcp_config is not None
+    if _upstream_http_client is None:
+        _upstream_http_client = httpx.AsyncClient(
+            timeout=mcp_config.upstream_timeout,
+            limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
+        )
+    return _upstream_http_client
 
 
 def generate_mock_result(method: str, params: dict[str, Any] | None, config: MCPConfig) -> dict[str, Any]:
@@ -311,6 +376,15 @@ def scorecard_data() -> dict[str, Any]:
         outcome = "DEGRADED"
     else:
         outcome = "FAIL"
+    avg_processing_ms = (
+        round(mcp_stats.total_processing_time_ms / mcp_stats.total_requests, 2)
+        if mcp_stats.total_requests > 0
+        else 0.0
+    )
+    # Calculate requests per second
+    elapsed = time.monotonic() - mcp_stats.session_start_time
+    rps = round(mcp_stats.total_requests / elapsed, 2) if elapsed > 0 else 0.0
+    mcp_stats.requests_per_second = rps
     return {
         "requests_seen": mcp_stats.total_requests,
         "injected_faults": mcp_stats.injected_faults,
@@ -322,6 +396,20 @@ def scorecard_data() -> dict[str, Any]:
         "tool_calls": mcp_stats.tool_calls,
         "resource_reads": mcp_stats.resource_reads,
         "init_requests": mcp_stats.init_requests,
+        "cache_hits": mcp_stats.cache_hits,
+        "cache_misses": mcp_stats.cache_misses,
+        "avg_processing_ms": avg_processing_ms,
+        # Detailed overhead breakdown
+        "parse_time_ms": round(mcp_stats.parse_time_ms, 2),
+        "fault_check_time_ms": round(mcp_stats.fault_check_time_ms, 2),
+        "cache_lookup_time_ms": round(mcp_stats.cache_lookup_time_ms, 2),
+        "upstream_time_ms": round(mcp_stats.upstream_time_ms, 2),
+        "serialization_time_ms": round(mcp_stats.serialization_time_ms, 2),
+        # Throughput metrics
+        "requests_per_second": rps,
+        # Connection pool stats
+        "http_pool_size": mcp_stats.http_pool_size,
+        "http_pool_active": mcp_stats.http_pool_active,
         "method_counts": dict(mcp_stats.method_counts),
         "tool_successes_by_name": dict(mcp_stats.tool_successes_by_name),
         "tool_failures_by_name": dict(mcp_stats.tool_failures_by_name),
@@ -347,7 +435,24 @@ def print_scorecard() -> None:
         f"Upstream Failures: {data['upstream_failures']}",
         f"Duplicate Requests: {data['duplicate_requests']}",
         f"Suspected Loops: {data['suspected_loops']}",
+        f"Cache Hits: {data['cache_hits']}",
+        f"Cache Misses: {data['cache_misses']}",
+        f"Avg Processing Time: {data['avg_processing_ms']}ms",
+        f"Throughput: {data['requests_per_second']} req/s",
     ]
+    # Detailed overhead breakdown
+    if data["requests_seen"] > 0:
+        lines.append("Proxy Overhead Breakdown:")
+        lines.append(f"  Parse Time: {data['parse_time_ms']}ms")
+        lines.append(f"  Fault Check Time: {data['fault_check_time_ms']}ms")
+        lines.append(f"  Cache Lookup Time: {data['cache_lookup_time_ms']}ms")
+        lines.append(f"  Upstream Time: {data['upstream_time_ms']}ms")
+        lines.append(f"  Serialization Time: {data['serialization_time_ms']}ms")
+    # Connection pool stats
+    if data["http_pool_size"] > 0 or data["http_pool_active"] > 0:
+        lines.append("HTTP Connection Pool:")
+        lines.append(f"  Pool Size: {data['http_pool_size']}")
+        lines.append(f"  Active Connections: {data['http_pool_active']}")
     if data["method_counts"]:
         lines.append("Method Counts:")
         for method, count in sorted(data["method_counts"].items()):
@@ -377,28 +482,31 @@ def print_scorecard() -> None:
 async def _forward_http(
     mcp_req: MCPRequest, body: bytes, http_request: Request
 ) -> JSONResponse:
-    """Forward an MCP request to an HTTP upstream server."""
+    """Forward an MCP request to an HTTP upstream server using the shared connection pool."""
     assert mcp_config is not None
-    timeout = mcp_config.upstream_timeout
-    async with httpx.AsyncClient(timeout=timeout) as client:
-        try:
-            response = await client.post(
-                f"{mcp_config.upstream_url.rstrip('/')}/mcp",
-                content=body,
-                headers=filter_headers(http_request.headers),
-            )
-        except httpx.HTTPError as exc:
-            mcp_stats.upstream_failures += 1
-            return JSONResponse(
-                status_code=200,
-                content=mcp_error_response(
-                    mcp_req.id,
-                    MCPError(
-                        code=INTERNAL_ERROR,
-                        message=f"AgentBreak could not reach upstream: {exc}",
-                    ),
+    client = await _get_upstream_http_client()
+    try:
+        # Track connection pool stats
+        mcp_stats.http_pool_size = client._limits.max_connections
+        mcp_stats.http_pool_active = len(client._connections)
+
+        response = await client.post(
+            f"{mcp_config.upstream_url.rstrip('/')}/mcp",
+            content=body,
+            headers=filter_headers(http_request.headers),
+        )
+    except httpx.HTTPError as exc:
+        mcp_stats.upstream_failures += 1
+        return JSONResponse(
+            status_code=200,
+            content=mcp_error_response(
+                mcp_req.id,
+                MCPError(
+                    code=INTERNAL_ERROR,
+                    message=f"AgentBreak could not reach upstream: {exc}",
                 ),
-            )
+            ),
+        )
 
     if response.status_code < 400:
         mcp_stats.upstream_successes += 1
@@ -471,14 +579,112 @@ async def _forward_sse(mcp_req: MCPRequest) -> JSONResponse:
         )
 
 
+async def _process_single_mcp_request(
+    raw: dict[str, Any], body: bytes, http_request: Request
+) -> dict[str, Any]:
+    """Process one parsed JSON-RPC request dict and return a response dict."""
+    assert mcp_config is not None
+    start_time = time.monotonic()
+
+    # Phase 1: Parse request
+    parse_start = time.monotonic()
+    try:
+        mcp_req = MCPRequest.from_dict(raw)
+        mcp_req._json_bytes = body  # cache original bytes to skip re-serialization
+    except (ValueError, KeyError) as exc:
+        parse_elapsed = (time.monotonic() - parse_start) * 1000
+        mcp_stats.parse_time_ms += parse_elapsed
+        elapsed = (time.monotonic() - start_time) * 1000
+        mcp_stats.total_processing_time_ms += elapsed
+        return mcp_error_response(raw.get("id"), MCPError(code=-32700, message=f"Parse error: {exc}"))
+    mcp_stats.parse_time_ms += (time.monotonic() - parse_start) * 1000
+
+    record_mcp_request(mcp_req, body)
+
+    # Phase 2: Fault injection check
+    fault_check_start = time.monotonic()
+    should_fault = should_inject(mcp_config.fail_rate)
+    mcp_stats.fault_check_time_ms += (time.monotonic() - fault_check_start) * 1000
+
+    if should_fault:
+        error = pick_mcp_error()
+        mcp_stats.injected_faults += 1
+        mcp_stats.upstream_failures += 1
+        _record_method_outcome(mcp_req, False)
+        elapsed = (time.monotonic() - start_time) * 1000
+        mcp_stats.total_processing_time_ms += elapsed
+        return mcp_error_response(mcp_req.id, error)
+
+    await maybe_delay()
+
+    # Phase 3: Cache lookup (for cacheable methods)
+    cache_start = time.monotonic()
+    if mcp_req.method in _CACHEABLE_METHODS:
+        cached = _get_from_cache(mcp_req.method, mcp_req.params)
+        mcp_stats.cache_lookup_time_ms += (time.monotonic() - cache_start) * 1000
+        if cached is not None:
+            mcp_stats.cache_hits += 1
+            mcp_stats.upstream_successes += 1
+            _record_method_outcome(mcp_req, True)
+            # Phase 5: Serialize response (for cache hits)
+            serialize_start = time.monotonic()
+            response = MCPResponse(id=mcp_req.id, result=cached).to_dict()
+            mcp_stats.serialization_time_ms += (time.monotonic() - serialize_start) * 1000
+            elapsed = (time.monotonic() - start_time) * 1000
+            mcp_stats.total_processing_time_ms += elapsed
+            return response
+        mcp_stats.cache_misses += 1
+    else:
+        mcp_stats.cache_lookup_time_ms += (time.monotonic() - cache_start) * 1000
+
+    # Phase 4: Upstream request / mock response
+    upstream_start = time.monotonic()
+    if mcp_config.mode == "mock":
+        mcp_stats.upstream_successes += 1
+        result = generate_mock_result(mcp_req.method, mcp_req.params, mcp_config)
+        _record_method_outcome(mcp_req, True)
+        if mcp_req.method in _CACHEABLE_METHODS:
+            _put_in_cache(mcp_req.method, mcp_req.params, result)
+    else:
+        transport = mcp_config.upstream_transport
+        if transport == "stdio":
+            jresp = await _forward_stdio(mcp_req)
+        elif transport == "sse":
+            jresp = await _forward_sse(mcp_req)
+        else:
+            jresp = await _forward_http(mcp_req, body, http_request)
+        resp_dict: dict[str, Any] = json.loads(jresp.body)
+        is_success = "error" not in resp_dict
+        # Populate cache for successful list responses.
+        if is_success and mcp_req.method in _CACHEABLE_METHODS:
+            result_payload = resp_dict.get("result") or {}
+            _put_in_cache(mcp_req.method, mcp_req.params, result_payload)
+        _record_method_outcome(mcp_req, is_success)
+        mcp_stats.upstream_time_ms += (time.monotonic() - upstream_start) * 1000
+        elapsed = (time.monotonic() - start_time) * 1000
+        mcp_stats.total_processing_time_ms += elapsed
+        return resp_dict
+
+    mcp_stats.upstream_time_ms += (time.monotonic() - upstream_start) * 1000
+
+    # Phase 5: Serialize response
+    serialize_start = time.monotonic()
+    response = MCPResponse(id=mcp_req.id, result=result).to_dict()
+    mcp_stats.serialization_time_ms += (time.monotonic() - serialize_start) * 1000
+
+    elapsed = (time.monotonic() - start_time) * 1000
+    mcp_stats.total_processing_time_ms += elapsed
+    return response
+
+
 @app.post("/mcp")
 async def proxy_mcp(request: Request) -> JSONResponse:
     assert mcp_config is not None
     body = await request.body()
 
     try:
-        mcp_req = MCPRequest.from_json(body)
-    except (ValueError, KeyError, json.JSONDecodeError) as exc:
+        parsed = json.loads(body)
+    except json.JSONDecodeError as exc:
         return JSONResponse(
             status_code=200,
             content=mcp_error_response(
@@ -487,38 +693,17 @@ async def proxy_mcp(request: Request) -> JSONResponse:
             ),
         )
 
-    record_mcp_request(mcp_req, body)
+    # JSON-RPC 2.0 batch request: process all items concurrently.
+    if isinstance(parsed, list):
+        tasks = [
+            _process_single_mcp_request(item, json.dumps(item).encode(), request)
+            for item in parsed
+        ]
+        responses = await asyncio.gather(*tasks)
+        return JSONResponse(status_code=200, content=list(responses))
 
-    if should_inject(mcp_config.fail_rate):
-        error = pick_mcp_error()
-        mcp_stats.injected_faults += 1
-        mcp_stats.upstream_failures += 1
-        _record_method_outcome(mcp_req, False)
-        return JSONResponse(
-            status_code=200,
-            content=mcp_error_response(mcp_req.id, error),
-        )
-
-    await maybe_delay()
-
-    if mcp_config.mode == "mock":
-        mcp_stats.upstream_successes += 1
-        result = generate_mock_result(mcp_req.method, mcp_req.params, mcp_config)
-        _record_method_outcome(mcp_req, True)
-        return JSONResponse(
-            status_code=200,
-            content=MCPResponse(id=mcp_req.id, result=result).to_dict(),
-        )
-
-    transport = mcp_config.upstream_transport
-    if transport == "stdio":
-        response = await _forward_stdio(mcp_req)
-    elif transport == "sse":
-        response = await _forward_sse(mcp_req)
-    else:
-        response = await _forward_http(mcp_req, body, request)
-    _record_method_outcome(mcp_req, _is_success_response(response))
-    return response
+    result = await _process_single_mcp_request(parsed, body, request)
+    return JSONResponse(status_code=200, content=result)
 
 
 @app.get("/healthz")
@@ -568,7 +753,7 @@ def start(
     seed: int | None = typer.Option(None, help="Optional deterministic random seed."),
     port: int = typer.Option(PORT, help="Port to bind the MCP proxy on."),
 ) -> None:
-    global mcp_config, mcp_stats, _stdio_transport, _sse_transport
+    global mcp_config, mcp_stats, _stdio_transport, _sse_transport, _upstream_http_client, _response_cache
 
     if mode not in {"proxy", "mock"}:
         raise typer.BadParameter("mode must be 'proxy' or 'mock'")
@@ -614,6 +799,8 @@ def start(
     mcp_stats = MCPStats()
     _stdio_transport = None
     _sse_transport = None
+    _upstream_http_client = None
+    _response_cache = {}
 
     if mcp_config.seed is not None:
         random.seed(mcp_config.seed)

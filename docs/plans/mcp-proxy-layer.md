@@ -148,12 +148,12 @@ MCP is a JSON-RPC 2.0 protocol used by Claude Code and other AI tools to interac
 
 ### Task 13: Add MCP proxy performance optimizations
 
-- [ ] Add connection pooling for HTTP/SSE transports
-- [ ] Implement request batching for multiple tool calls
-- [ ] Add caching layer for resources/list responses
-- [ ] Add metrics for proxy overhead measurement
-- [ ] Profile and optimize JSON-RPC parsing
-- [ ] Add benchmarks comparing proxy vs direct MCP calls
+- [x] Add connection pooling for HTTP/SSE transports
+- [x] Implement request batching for multiple tool calls
+- [x] Add caching layer for resources/list responses
+- [x] Add metrics for proxy overhead measurement
+- [x] Profile and optimize JSON-RPC parsing
+- [x] Add benchmarks comparing proxy vs direct MCP calls
 
 ### Task 14: Final integration and polish
 

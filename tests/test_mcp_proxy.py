@@ -33,6 +33,8 @@ def reset_state(
         latency_p=latency_p,
     )
     mcp_proxy.mcp_stats = mcp_proxy.MCPStats()
+    mcp_proxy._response_cache = {}
+    mcp_proxy._upstream_http_client = None
 
 
 client = TestClient(mcp_proxy.app)

@@ -98,7 +98,7 @@ class StdioTransport(MCPTransport):
             for attempt in range(2):
                 process = await self._ensure_process()
                 assert process.stdin is not None and process.stdout is not None
-                line = json.dumps(request.to_dict()) + "\n"
+                line = request.to_json_bytes().decode("utf-8") + "\n"
                 try:
                     process.stdin.write(line.encode())
                     await process.stdin.drain()
@@ -156,9 +156,13 @@ class SSETransport(MCPTransport):
         self,
         base_url: str,
         timeout: float = DEFAULT_TRANSPORT_TIMEOUT,
+        max_connections: int = 10,
+        max_keepalive_connections: int = 5,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
+        self.max_connections = max_connections
+        self.max_keepalive_connections = max_keepalive_connections
         self._endpoint_url: str | None = None
         self._pending: dict[str | int | None, asyncio.Future[dict[str, Any]]] = {}
         self._client: httpx.AsyncClient | None = None
@@ -202,7 +206,11 @@ class SSETransport(MCPTransport):
         if self._started:
             return
         self._started = True
-        self._client = httpx.AsyncClient(timeout=self.timeout)
+        limits = httpx.Limits(
+            max_connections=self.max_connections,
+            max_keepalive_connections=self.max_keepalive_connections,
+        )
+        self._client = httpx.AsyncClient(timeout=self.timeout, limits=limits)
         loop = asyncio.get_event_loop()
         self._sse_task = loop.create_task(self._listen_sse())
         # Wait up to 5 seconds for the server to send the endpoint URL.
@@ -226,7 +234,7 @@ class SSETransport(MCPTransport):
         try:
             await self._client.post(
                 self._endpoint_url,
-                content=json.dumps(request.to_dict()).encode(),
+                content=request.to_json_bytes(),
                 headers={"Content-Type": "application/json"},
             )
             return await asyncio.wait_for(future, timeout=self.timeout)
@@ -251,9 +259,9 @@ class SSETransport(MCPTransport):
 class HTTPTransport(MCPTransport):
     """Transport that forwards MCP requests to an upstream HTTP server.
 
-    Maintains a persistent httpx.AsyncClient for connection reuse.  The client
-    is created on `start()` (or lazily on first `send_request()`) and closed
-    on `stop()`.
+    Maintains a persistent httpx.AsyncClient for connection reuse with a
+    configurable connection pool.  The client is created on `start()` (or
+    lazily on first `send_request()`) and closed on `stop()`.
     """
 
     def __init__(
@@ -261,10 +269,14 @@ class HTTPTransport(MCPTransport):
         base_url: str,
         timeout: float = DEFAULT_TRANSPORT_TIMEOUT,
         extra_headers: dict[str, str] | None = None,
+        max_connections: int = 10,
+        max_keepalive_connections: int = 5,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self.extra_headers = extra_headers or {}
+        self.max_connections = max_connections
+        self.max_keepalive_connections = max_keepalive_connections
         self._client: httpx.AsyncClient | None = None
         self._started = False
 
@@ -272,14 +284,18 @@ class HTTPTransport(MCPTransport):
         """Create the HTTP client (optional; happens lazily on first request)."""
         if not self._started:
             self._started = True
-            self._client = httpx.AsyncClient(timeout=self.timeout)
+            limits = httpx.Limits(
+                max_connections=self.max_connections,
+                max_keepalive_connections=self.max_keepalive_connections,
+            )
+            self._client = httpx.AsyncClient(timeout=self.timeout, limits=limits)
 
     async def send_request(self, request: MCPRequest) -> dict[str, Any]:
         if not self._started:
             await self.start()
         assert self._client is not None
         headers = {"Content-Type": "application/json", **self.extra_headers}
-        body = json.dumps(request.to_dict()).encode()
+        body = request.to_json_bytes()
         try:
             response = await self._client.post(
                 f"{self.base_url}/mcp",
@@ -312,6 +328,8 @@ def create_transport(
     command: tuple[str, ...] = (),
     timeout: float = DEFAULT_TRANSPORT_TIMEOUT,
     extra_headers: dict[str, str] | None = None,
+    max_connections: int = 10,
+    max_keepalive_connections: int = 5,
 ) -> MCPTransport:
     """Factory function to create a transport by type name.
 
@@ -321,6 +339,8 @@ def create_transport(
         command: Required for "stdio" transport.
         timeout: Request/connection timeout in seconds.
         extra_headers: Optional extra headers for HTTP/SSE transports.
+        max_connections: Maximum number of connections in the pool (http/sse).
+        max_keepalive_connections: Maximum number of idle keep-alive connections (http/sse).
 
     Returns:
         An MCPTransport instance ready for use.
@@ -335,11 +355,22 @@ def create_transport(
     if transport_type == "sse":
         if not base_url:
             raise ValueError("base_url is required for sse transport")
-        return SSETransport(base_url=base_url, timeout=timeout)
+        return SSETransport(
+            base_url=base_url,
+            timeout=timeout,
+            max_connections=max_connections,
+            max_keepalive_connections=max_keepalive_connections,
+        )
     if transport_type == "http":
         if not base_url:
             raise ValueError("base_url is required for http transport")
-        return HTTPTransport(base_url=base_url, timeout=timeout, extra_headers=extra_headers)
+        return HTTPTransport(
+            base_url=base_url,
+            timeout=timeout,
+            extra_headers=extra_headers,
+            max_connections=max_connections,
+            max_keepalive_connections=max_keepalive_connections,
+        )
     raise ValueError(
         f"Unknown transport type '{transport_type}'. Must be one of: stdio, sse, http"
     )
