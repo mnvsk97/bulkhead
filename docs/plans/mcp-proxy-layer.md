@@ -56,14 +56,14 @@ MCP is a JSON-RPC 2.0 protocol used by Claude Code and other AI tools to interac
 
 ### Task 4: Implement MCP mock mode
 
-- [ ] Create mock response generators for common MCP methods
-- [ ] Mock `initialize` to return fake server capabilities
-- [ ] Mock `tools/list` to return sample tool definitions
-- [ ] Mock `tools/call` to return fake tool results
-- [ ] Mock `resources/list` to return sample resource URIs
-- [ ] Mock `resources/read` to return fake resource content
-- [ ] Mock `prompts/list` to return sample prompt templates
-- [ ] Add configuration for which tools/resources to mock
+- [x] Create mock response generators for common MCP methods
+- [x] Mock `initialize` to return fake server capabilities
+- [x] Mock `tools/list` to return sample tool definitions
+- [x] Mock `tools/call` to return fake tool results
+- [x] Mock `resources/list` to return sample resource URIs
+- [x] Mock `resources/read` to return fake resource content
+- [x] Mock `prompts/list` to return sample prompt templates
+- [x] Add configuration for which tools/resources to mock
 
 ### Task 5: Implement MCP proxy mode with upstream forwarding
 

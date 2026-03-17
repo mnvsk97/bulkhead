@@ -47,6 +47,49 @@ _HTTP_TO_MCP: dict[int, tuple[int, str]] = {
 }
 
 
+_DEFAULT_MOCK_TOOLS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "echo",
+        "description": "Echo back the input text.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"text": {"type": "string", "description": "Text to echo"}},
+            "required": ["text"],
+        },
+    },
+    {
+        "name": "get_time",
+        "description": "Return the current UTC time.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+)
+
+_DEFAULT_MOCK_RESOURCES: tuple[dict[str, Any], ...] = (
+    {
+        "uri": "file:///example/readme.txt",
+        "name": "README",
+        "description": "Example README file.",
+        "mimeType": "text/plain",
+    },
+    {
+        "uri": "file:///example/data.json",
+        "name": "Data",
+        "description": "Example data file.",
+        "mimeType": "application/json",
+    },
+)
+
+_DEFAULT_MOCK_PROMPTS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "summarize",
+        "description": "Summarize a piece of text.",
+        "arguments": [
+            {"name": "text", "description": "Text to summarize.", "required": True}
+        ],
+    },
+)
+
+
 @dataclass
 class MCPConfig:
     mode: str = "proxy"
@@ -57,6 +100,9 @@ class MCPConfig:
     latency_min: float = 5.0
     latency_max: float = 15.0
     seed: int | None = None
+    mock_tools: tuple[dict[str, Any], ...] = _DEFAULT_MOCK_TOOLS
+    mock_resources: tuple[dict[str, Any], ...] = _DEFAULT_MOCK_RESOURCES
+    mock_prompts: tuple[dict[str, Any], ...] = _DEFAULT_MOCK_PROMPTS
 
 
 @dataclass
@@ -139,6 +185,52 @@ async def maybe_delay() -> None:
     mcp_stats.latency_injections += 1
     delay = random.uniform(mcp_config.latency_min, mcp_config.latency_max)
     await asyncio.sleep(delay)
+
+
+def generate_mock_result(method: str, params: dict[str, Any] | None, config: MCPConfig) -> dict[str, Any]:
+    """Return a realistic stub result for the given MCP method."""
+    if method == "initialize":
+        return {
+            "protocolVersion": "2024-11-05",
+            "capabilities": {"tools": {}, "resources": {}, "prompts": {}},
+            "serverInfo": {"name": "agentbreak-mock", "version": "1.0.0"},
+        }
+    if method == "tools/list":
+        return {"tools": list(config.mock_tools)}
+    if method == "tools/call":
+        tool_name = (params or {}).get("name", "unknown")
+        return {
+            "content": [{"type": "text", "text": f"Mock result for tool: {tool_name}"}],
+            "isError": False,
+        }
+    if method == "resources/list":
+        return {"resources": list(config.mock_resources)}
+    if method == "resources/read":
+        uri = (params or {}).get("uri", "")
+        return {
+            "contents": [
+                {
+                    "uri": uri,
+                    "mimeType": "text/plain",
+                    "text": f"Mock content for resource: {uri}",
+                }
+            ]
+        }
+    if method == "prompts/list":
+        return {"prompts": list(config.mock_prompts)}
+    if method == "prompts/get":
+        name = (params or {}).get("name", "unknown")
+        return {
+            "description": f"Mock prompt: {name}",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": {"type": "text", "text": f"Mock prompt template for: {name}"},
+                }
+            ],
+        }
+    # Catch-all for unknown methods
+    return {}
 
 
 def filter_headers(headers: httpx.Headers) -> dict[str, str]:
@@ -228,9 +320,10 @@ async def proxy_mcp(request: Request) -> JSONResponse:
 
     if mcp_config.mode == "mock":
         mcp_stats.upstream_successes += 1
+        result = generate_mock_result(mcp_req.method, mcp_req.params, mcp_config)
         return JSONResponse(
             status_code=200,
-            content=MCPResponse(id=mcp_req.id, result={}).to_dict(),
+            content=MCPResponse(id=mcp_req.id, result=result).to_dict(),
         )
 
     async with httpx.AsyncClient(timeout=120.0) as client:

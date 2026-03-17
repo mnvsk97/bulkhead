@@ -373,3 +373,163 @@ def test_recent_requests_capped_at_20() -> None:
         payload = json.dumps({"jsonrpc": "2.0", "id": i, "method": "tools/list"}).encode()
         client.post("/mcp", content=payload, headers={"content-type": "application/json"})
     assert len(mcp_proxy.mcp_stats.recent_requests) == 20
+
+
+# ---------------------------------------------------------------------------
+# Mock mode response generators
+# ---------------------------------------------------------------------------
+
+def test_mock_initialize_returns_capabilities() -> None:
+    reset_state(mode="mock")
+    payload = json.dumps({
+        "jsonrpc": "2.0", "id": 1, "method": "initialize",
+        "params": {"protocolVersion": "2024-11-05", "capabilities": {}},
+    }).encode()
+    resp = client.post("/mcp", content=payload, headers={"content-type": "application/json"})
+    body = resp.json()
+    assert "error" not in body
+    result = body["result"]
+    assert "protocolVersion" in result
+    assert "capabilities" in result
+    assert "serverInfo" in result
+    assert result["serverInfo"]["name"] == "agentbreak-mock"
+
+
+def test_mock_tools_list_returns_tools() -> None:
+    reset_state(mode="mock")
+    payload = json.dumps({"jsonrpc": "2.0", "id": 2, "method": "tools/list"}).encode()
+    resp = client.post("/mcp", content=payload, headers={"content-type": "application/json"})
+    body = resp.json()
+    assert "error" not in body
+    result = body["result"]
+    assert "tools" in result
+    assert isinstance(result["tools"], list)
+    assert len(result["tools"]) > 0
+    tool_names = [t["name"] for t in result["tools"]]
+    assert "echo" in tool_names
+
+
+def test_mock_tools_call_returns_content() -> None:
+    reset_state(mode="mock")
+    payload = json.dumps({
+        "jsonrpc": "2.0", "id": 3, "method": "tools/call",
+        "params": {"name": "echo", "arguments": {"text": "hello"}},
+    }).encode()
+    resp = client.post("/mcp", content=payload, headers={"content-type": "application/json"})
+    body = resp.json()
+    assert "error" not in body
+    result = body["result"]
+    assert "content" in result
+    assert isinstance(result["content"], list)
+    assert result["content"][0]["type"] == "text"
+    assert "echo" in result["content"][0]["text"]
+
+
+def test_mock_tools_call_includes_tool_name_in_result() -> None:
+    reset_state(mode="mock")
+    payload = json.dumps({
+        "jsonrpc": "2.0", "id": 4, "method": "tools/call",
+        "params": {"name": "my_special_tool", "arguments": {}},
+    }).encode()
+    resp = client.post("/mcp", content=payload, headers={"content-type": "application/json"})
+    body = resp.json()
+    assert "my_special_tool" in body["result"]["content"][0]["text"]
+
+
+def test_mock_resources_list_returns_resources() -> None:
+    reset_state(mode="mock")
+    payload = json.dumps({"jsonrpc": "2.0", "id": 5, "method": "resources/list"}).encode()
+    resp = client.post("/mcp", content=payload, headers={"content-type": "application/json"})
+    body = resp.json()
+    assert "error" not in body
+    result = body["result"]
+    assert "resources" in result
+    assert isinstance(result["resources"], list)
+    assert len(result["resources"]) > 0
+    uris = [r["uri"] for r in result["resources"]]
+    assert any("file://" in u for u in uris)
+
+
+def test_mock_resources_read_returns_contents() -> None:
+    reset_state(mode="mock")
+    payload = json.dumps({
+        "jsonrpc": "2.0", "id": 6, "method": "resources/read",
+        "params": {"uri": "file:///example/readme.txt"},
+    }).encode()
+    resp = client.post("/mcp", content=payload, headers={"content-type": "application/json"})
+    body = resp.json()
+    assert "error" not in body
+    result = body["result"]
+    assert "contents" in result
+    assert isinstance(result["contents"], list)
+    contents = result["contents"][0]
+    assert contents["uri"] == "file:///example/readme.txt"
+    assert "text" in contents
+
+
+def test_mock_prompts_list_returns_prompts() -> None:
+    reset_state(mode="mock")
+    payload = json.dumps({"jsonrpc": "2.0", "id": 7, "method": "prompts/list"}).encode()
+    resp = client.post("/mcp", content=payload, headers={"content-type": "application/json"})
+    body = resp.json()
+    assert "error" not in body
+    result = body["result"]
+    assert "prompts" in result
+    assert isinstance(result["prompts"], list)
+    assert len(result["prompts"]) > 0
+    prompt_names = [p["name"] for p in result["prompts"]]
+    assert "summarize" in prompt_names
+
+
+def test_mock_prompts_get_returns_messages() -> None:
+    reset_state(mode="mock")
+    payload = json.dumps({
+        "jsonrpc": "2.0", "id": 8, "method": "prompts/get",
+        "params": {"name": "summarize"},
+    }).encode()
+    resp = client.post("/mcp", content=payload, headers={"content-type": "application/json"})
+    body = resp.json()
+    assert "error" not in body
+    result = body["result"]
+    assert "messages" in result
+    assert isinstance(result["messages"], list)
+    assert result["messages"][0]["role"] == "user"
+
+
+def test_mock_unknown_method_returns_empty_result() -> None:
+    reset_state(mode="mock")
+    payload = json.dumps({"jsonrpc": "2.0", "id": 9, "method": "notifications/cancelled"}).encode()
+    resp = client.post("/mcp", content=payload, headers={"content-type": "application/json"})
+    body = resp.json()
+    assert "error" not in body
+    assert body["result"] == {}
+
+
+def test_mock_custom_tools_config() -> None:
+    reset_state(mode="mock")
+    custom_tool = {"name": "custom_tool", "description": "A custom tool.", "inputSchema": {"type": "object", "properties": {}}}
+    mcp_proxy.mcp_config = mcp_proxy.MCPConfig(
+        mode="mock",
+        mock_tools=(custom_tool,),
+    )
+    payload = json.dumps({"jsonrpc": "2.0", "id": 10, "method": "tools/list"}).encode()
+    resp = client.post("/mcp", content=payload, headers={"content-type": "application/json"})
+    body = resp.json()
+    tools = body["result"]["tools"]
+    assert len(tools) == 1
+    assert tools[0]["name"] == "custom_tool"
+
+
+def test_mock_custom_resources_config() -> None:
+    reset_state(mode="mock")
+    custom_resource = {"uri": "s3://my-bucket/data.csv", "name": "Data", "mimeType": "text/csv"}
+    mcp_proxy.mcp_config = mcp_proxy.MCPConfig(
+        mode="mock",
+        mock_resources=(custom_resource,),
+    )
+    payload = json.dumps({"jsonrpc": "2.0", "id": 11, "method": "resources/list"}).encode()
+    resp = client.post("/mcp", content=payload, headers={"content-type": "application/json"})
+    body = resp.json()
+    resources = body["result"]["resources"]
+    assert len(resources) == 1
+    assert resources[0]["uri"] == "s3://my-bucket/data.csv"
