@@ -143,6 +143,7 @@ services through tools, resources, and prompts.
 
 The MCP proxy sits between MCP clients and MCP servers, injecting faults and tracking duplicate
 or looping tool calls — the same way the OpenAI proxy works for chat completions.
+**NEW in 0.2.0!** See [RELEASE_NOTES.md](RELEASE_NOTES.md) for detailed release information and [docs/mcp-migration-guide.md](docs/mcp-migration-guide.md) for migration guide.
 
 ```text
 mock mode:   MCP client → AgentBreak MCP proxy → fake response / injected fault

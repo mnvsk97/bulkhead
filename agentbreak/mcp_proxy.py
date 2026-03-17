@@ -756,19 +756,19 @@ def start(
     global mcp_config, mcp_stats, _stdio_transport, _sse_transport, _upstream_http_client, _response_cache
 
     if mode not in {"proxy", "mock"}:
-        raise typer.BadParameter("mode must be 'proxy' or 'mock'")
+        raise typer.BadParameter("mode must be 'proxy' or 'mock'. 'mock' returns fake responses without a real server. 'proxy' forwards to a real MCP server.")
     if upstream_transport not in {"http", "stdio", "sse"}:
-        raise typer.BadParameter("upstream-transport must be 'http', 'stdio', or 'sse'.")
+        raise typer.BadParameter("upstream-transport must be 'http', 'stdio', or 'sse'. Choose the transport type that matches your MCP server: 'http' for HTTP/SSE servers, 'stdio' for subprocess-based servers.")
     if mode == "proxy" and upstream_transport in {"http", "sse"} and not upstream_url:
-        raise typer.BadParameter("--upstream-url is required for http and sse transports.")
+        raise typer.BadParameter(f"--upstream-url is required for {upstream_transport} transport in proxy mode. Provide the base URL of your MCP server (e.g., http://localhost:8080).")
     if mode == "proxy" and upstream_transport == "stdio" and not upstream_command:
-        raise typer.BadParameter("--upstream-command is required for stdio transport.")
+        raise typer.BadParameter("--upstream-command is required for stdio transport in proxy mode. Provide the command to start your MCP server (e.g., 'python server.py').")
     if latency_min < 0 or latency_max < 0:
-        raise typer.BadParameter("Latency values must be >= 0.")
+        raise typer.BadParameter("Latency values must be >= 0. Latency is the delay (in seconds) to add before forwarding requests.")
     if latency_min > latency_max:
-        raise typer.BadParameter("--latency-min must be <= --latency-max.")
+        raise typer.BadParameter("--latency-min must be <= --latency-max. The minimum delay cannot be greater than the maximum.")
     if upstream_timeout <= 0:
-        raise typer.BadParameter("--upstream-timeout must be > 0.")
+        raise typer.BadParameter(f"--upstream-timeout must be > 0. Current value: {upstream_timeout}. Timeout is the maximum time (in seconds) to wait for MCP server responses.")
 
     scenario_config: dict[str, Any] = {}
     if scenario is not None:

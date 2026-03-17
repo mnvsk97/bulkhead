@@ -79,12 +79,17 @@ class StdioTransport(MCPTransport):
 
     async def _ensure_process(self) -> asyncio.subprocess.Process:
         if self._process is None or self._process.returncode is not None:
-            self._process = await asyncio.create_subprocess_exec(
-                *self.command,
-                stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.DEVNULL,
-            )
+            try:
+                self._process = await asyncio.create_subprocess_exec(
+                    *self.command,
+                    stdin=asyncio.subprocess.PIPE,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.DEVNULL,
+                )
+            except (FileNotFoundError, PermissionError, OSError) as exc:
+                raise RuntimeError(
+                    f"Failed to start stdio subprocess: {exc}"
+                ) from exc
         return self._process
 
     async def start(self) -> None:

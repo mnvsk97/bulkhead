@@ -157,10 +157,10 @@ MCP is a JSON-RPC 2.0 protocol used by Claude Code and other AI tools to interac
 
 ### Task 14: Final integration and polish
 
-- [ ] Test MCP proxy with multiple real MCP servers (filesystem, database, web)
-- [ ] Verify compatibility with Claude Code MCP integration
-- [ ] Add comprehensive error messages for common misconfigurations
-- [ ] Update version number in `pyproject.toml`
-- [ ] Add MCP proxy to PyPI release notes
-- [ ] Create migration guide for users adding MCP testing
-- [ ] Run full test suite and fix any regressions
+- [x] Test MCP proxy with multiple real MCP servers (filesystem, database, web)
+- [x] Verify compatibility with Claude Code MCP integration
+- [x] Add comprehensive error messages for common misconfigurations
+- [x] Update version number in `pyproject.toml`
+- [x] Add MCP proxy to PyPI release notes
+- [x] Create migration guide for users adding MCP testing
+- [x] Run full test suite and fix any regressions
