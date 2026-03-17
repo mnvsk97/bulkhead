@@ -161,7 +161,6 @@ class MCPStats:
     recent_requests: list[dict[str, Any]] = field(default_factory=list)
     # Connection pool stats
     http_pool_size: int = 0
-    http_pool_active: int = 0
     # Throughput metrics
     requests_per_second: float = 0.0
     session_start_time: float = field(default_factory=time.monotonic)
@@ -402,7 +401,6 @@ def scorecard_data() -> dict[str, Any]:
         "requests_per_second": rps,
         # Connection pool stats
         "http_pool_size": mcp_stats.http_pool_size,
-        "http_pool_active": mcp_stats.http_pool_active,
         "method_counts": dict(mcp_stats.method_counts),
         "tool_successes_by_name": dict(mcp_stats.tool_successes_by_name),
         "tool_failures_by_name": dict(mcp_stats.tool_failures_by_name),
@@ -442,10 +440,9 @@ def print_scorecard() -> None:
         lines.append(f"  Upstream Time: {data['upstream_time_ms']}ms")
         lines.append(f"  Serialization Time: {data['serialization_time_ms']}ms")
     # Connection pool stats
-    if data["http_pool_size"] > 0 or data["http_pool_active"] > 0:
+    if data["http_pool_size"] > 0:
         lines.append("HTTP Connection Pool:")
         lines.append(f"  Pool Size: {data['http_pool_size']}")
-        lines.append(f"  Active Connections: {data['http_pool_active']}")
     if data["method_counts"]:
         lines.append("Method Counts:")
         for method, count in sorted(data["method_counts"].items()):
@@ -474,8 +471,12 @@ def print_scorecard() -> None:
 
 async def _forward_http(
     mcp_req: MCPRequest, body: bytes, http_request: Request
-) -> JSONResponse:
-    """Forward an MCP request to an HTTP upstream server using the shared connection pool."""
+) -> tuple[JSONResponse, bool]:
+    """Forward an MCP request to an HTTP upstream server using the shared connection pool.
+
+    Returns (response, transport_success) where transport_success is False only when
+    we could not reach the upstream at all (network error or non-2xx HTTP status).
+    """
     assert mcp_config is not None
     client = await _get_upstream_http_client()
     try:
@@ -485,37 +486,42 @@ async def _forward_http(
             headers=filter_headers(http_request.headers),
         )
     except httpx.HTTPError as exc:
-        mcp_stats.upstream_failures += 1
-        return JSONResponse(
-            status_code=200,
-            content=mcp_error_response(
-                mcp_req.id,
-                MCPError(
-                    code=INTERNAL_ERROR,
-                    message=f"AgentBreak could not reach upstream: {exc}",
+        return (
+            JSONResponse(
+                status_code=200,
+                content=mcp_error_response(
+                    mcp_req.id,
+                    MCPError(
+                        code=INTERNAL_ERROR,
+                        message=f"AgentBreak could not reach upstream: {exc}",
+                    ),
                 ),
             ),
+            False,
         )
 
-    if response.status_code < 300:
-        mcp_stats.upstream_successes += 1
-    else:
-        mcp_stats.upstream_failures += 1
-
+    transport_success = response.status_code < 300
     try:
-        return JSONResponse(status_code=200, content=response.json())
+        return JSONResponse(status_code=200, content=response.json()), transport_success
     except Exception:
-        return JSONResponse(
-            status_code=200,
-            content=mcp_error_response(
-                mcp_req.id,
-                MCPError(code=INTERNAL_ERROR, message="Upstream returned non-JSON response."),
+        return (
+            JSONResponse(
+                status_code=200,
+                content=mcp_error_response(
+                    mcp_req.id,
+                    MCPError(code=INTERNAL_ERROR, message="Upstream returned non-JSON response."),
+                ),
             ),
+            False,
         )
 
 
-async def _forward_stdio(mcp_req: MCPRequest) -> JSONResponse:
-    """Forward an MCP request to a stdio subprocess."""
+async def _forward_stdio(mcp_req: MCPRequest) -> tuple[JSONResponse, bool]:
+    """Forward an MCP request to a stdio subprocess.
+
+    Returns (response, transport_success) where transport_success is False only when
+    the subprocess raised a transport-level exception.
+    """
     global _stdio_transport
     assert mcp_config is not None
     if _stdio_transport is None:
@@ -525,24 +531,29 @@ async def _forward_stdio(mcp_req: MCPRequest) -> JSONResponse:
         )
     try:
         result = await _stdio_transport.send_request(mcp_req)
-        mcp_stats.upstream_successes += 1
-        return JSONResponse(status_code=200, content=result)
+        return JSONResponse(status_code=200, content=result), True
     except (TimeoutError, RuntimeError, OSError) as exc:
-        mcp_stats.upstream_failures += 1
-        return JSONResponse(
-            status_code=200,
-            content=mcp_error_response(
-                mcp_req.id,
-                MCPError(
-                    code=INTERNAL_ERROR,
-                    message=f"Stdio upstream error: {exc}",
+        return (
+            JSONResponse(
+                status_code=200,
+                content=mcp_error_response(
+                    mcp_req.id,
+                    MCPError(
+                        code=INTERNAL_ERROR,
+                        message=f"Stdio upstream error: {exc}",
+                    ),
                 ),
             ),
+            False,
         )
 
 
-async def _forward_sse(mcp_req: MCPRequest) -> JSONResponse:
-    """Forward an MCP request to an SSE upstream server."""
+async def _forward_sse(mcp_req: MCPRequest) -> tuple[JSONResponse, bool]:
+    """Forward an MCP request to an SSE upstream server.
+
+    Returns (response, transport_success) where transport_success is False only when
+    the SSE transport raised a transport-level exception.
+    """
     global _sse_transport
     assert mcp_config is not None
     if _sse_transport is None:
@@ -552,8 +563,7 @@ async def _forward_sse(mcp_req: MCPRequest) -> JSONResponse:
         )
     try:
         result = await _sse_transport.send_request(mcp_req)
-        mcp_stats.upstream_successes += 1
-        return JSONResponse(status_code=200, content=result)
+        return JSONResponse(status_code=200, content=result), True
     except (TimeoutError, RuntimeError, OSError) as exc:
         # If the SSE listener task has died, reset the singleton so the next
         # request creates a fresh transport and reconnects.
@@ -565,16 +575,18 @@ async def _forward_sse(mcp_req: MCPRequest) -> JSONResponse:
             except Exception:
                 pass
             _sse_transport = None
-        mcp_stats.upstream_failures += 1
-        return JSONResponse(
-            status_code=200,
-            content=mcp_error_response(
-                mcp_req.id,
-                MCPError(
-                    code=INTERNAL_ERROR,
-                    message=f"SSE upstream error: {exc}",
+        return (
+            JSONResponse(
+                status_code=200,
+                content=mcp_error_response(
+                    mcp_req.id,
+                    MCPError(
+                        code=INTERNAL_ERROR,
+                        message=f"SSE upstream error: {exc}",
+                    ),
                 ),
             ),
+            False,
         )
 
 
@@ -647,13 +659,24 @@ async def _process_single_mcp_request(
     else:
         transport = mcp_config.upstream_transport
         if transport == "stdio":
-            jresp = await _forward_stdio(mcp_req)
+            jresp, transport_success = await _forward_stdio(mcp_req)
         elif transport == "sse":
-            jresp = await _forward_sse(mcp_req)
+            jresp, transport_success = await _forward_sse(mcp_req)
         else:
-            jresp = await _forward_http(mcp_req, body, http_request)
+            jresp, transport_success = await _forward_http(mcp_req, body, http_request)
         resp_dict: dict[str, Any] = json.loads(jresp.body)
-        is_success = "error" not in resp_dict
+        # Count transport failures immediately; for transport-level successes, also
+        # check whether the upstream returned a JSON-RPC error body so that
+        # run_outcome reflects actual tool-level outcomes, not just connectivity.
+        if not transport_success:
+            mcp_stats.upstream_failures += 1
+            is_success = False
+        else:
+            is_success = "error" not in resp_dict
+            if is_success:
+                mcp_stats.upstream_successes += 1
+            else:
+                mcp_stats.upstream_failures += 1
         # Populate cache for successful list responses.
         if is_success and mcp_req.method in _CACHEABLE_METHODS:
             result_payload = resp_dict.get("result") if resp_dict.get("result") is not None else {}
