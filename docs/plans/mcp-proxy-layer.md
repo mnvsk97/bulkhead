@@ -45,14 +45,14 @@ MCP is a JSON-RPC 2.0 protocol used by Claude Code and other AI tools to interac
 
 ### Task 3: Implement MCP proxy core logic
 
-- [ ] Create `agentbreak/mcp_proxy.py` with MCP proxy FastAPI app
-- [ ] Implement POST endpoint for MCP JSON-RPC 2.0 requests
-- [ ] Add request recording with fingerprinting similar to OpenAI proxy
-- [ ] Implement fault injection for MCP tool calls
-- [ ] Map HTTP error codes to MCP error codes (-32600 to -32603, -32000 for tools)
-- [ ] Add latency injection using existing `maybe_delay()` pattern
-- [ ] Track MCP-specific stats: tool calls, resource reads, initialization requests
-- [ ] Add unit tests in `tests/test_mcp_proxy.py`
+- [x] Create `agentbreak/mcp_proxy.py` with MCP proxy FastAPI app
+- [x] Implement POST endpoint for MCP JSON-RPC 2.0 requests
+- [x] Add request recording with fingerprinting similar to OpenAI proxy
+- [x] Implement fault injection for MCP tool calls
+- [x] Map HTTP error codes to MCP error codes (-32600 to -32603, -32000 for tools)
+- [x] Add latency injection using existing `maybe_delay()` pattern
+- [x] Track MCP-specific stats: tool calls, resource reads, initialization requests
+- [x] Add unit tests in `tests/test_mcp_proxy.py`
 
 ### Task 4: Implement MCP mock mode
 
