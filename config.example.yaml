@@ -12,3 +12,30 @@ request_count: 10
 faults:
   "500": 0.3
   "429": 0.2
+
+# MCP proxy configuration.
+# mcp_mode: disabled (default), mock, or proxy
+mcp_mode: disabled
+
+# Transport to reach the upstream MCP server: http (default), stdio, or sse
+mcp_upstream_transport: http
+
+# Base URL for http/sse upstream MCP server (required when mcp_mode=proxy and transport is http/sse)
+# mcp_upstream_url: http://localhost:8080
+
+# Command for stdio upstream MCP server (required when mcp_mode=proxy and transport is stdio).
+# Can be a string (split on whitespace) or a YAML list.
+# mcp_upstream_command: python my_mcp_server.py
+# mcp_upstream_command:
+#   - python
+#   - my_mcp_server.py
+
+# Probability of injecting a fault into MCP requests (0.0 to 1.0)
+mcp_fail_rate: 0.1
+
+# HTTP-style error codes to inject into MCP requests (mapped to JSON-RPC error codes internally).
+# Supported: 400, 401, 403, 404, 413, 429, 500, 503
+# mcp_error_codes:
+#   - 429
+#   - 500
+#   - 503

@@ -292,6 +292,160 @@ def test_mock_mode_returns_fake_success() -> None:
     assert main.stats.upstream_successes == 1
 
 
+# ---------------------------------------------------------------------------
+# MCP configuration tests
+# ---------------------------------------------------------------------------
+
+def test_config_mcp_defaults() -> None:
+    cfg = main.Config(upstream_url="https://api.openai.com")
+    assert cfg.mcp_mode == "disabled"
+    assert cfg.mcp_upstream_transport == "http"
+    assert cfg.mcp_upstream_command == ()
+    assert cfg.mcp_upstream_url == ""
+    assert cfg.mcp_fail_rate == 0.1
+    assert cfg.mcp_error_codes == main.DEFAULT_ERROR_CODES
+
+
+def test_config_mcp_fields() -> None:
+    cfg = main.Config(
+        upstream_url="",
+        mcp_mode="mock",
+        mcp_upstream_transport="sse",
+        mcp_upstream_url="http://localhost:8080",
+        mcp_fail_rate=0.3,
+        mcp_error_codes=(429, 500),
+    )
+    assert cfg.mcp_mode == "mock"
+    assert cfg.mcp_upstream_transport == "sse"
+    assert cfg.mcp_upstream_url == "http://localhost:8080"
+    assert cfg.mcp_fail_rate == 0.3
+    assert cfg.mcp_error_codes == (429, 500)
+
+
+def test_start_mcp_mode_disabled_by_default(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "config.yaml").write_text("mode: mock\n", encoding="utf-8")
+    from typer.testing import CliRunner
+    runner = CliRunner()
+    # Patch uvicorn.run to avoid actually starting a server
+    monkeypatch.setattr(main.uvicorn, "run", lambda *a, **kw: None)
+    result = runner.invoke(main.cli, ["start", "--config", str(tmp_path / "config.yaml")])
+    assert result.exit_code == 0
+    assert main.config is not None
+    assert main.config.mcp_mode == "disabled"
+
+
+def test_start_mcp_mode_mock_from_cli(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    from typer.testing import CliRunner
+    runner = CliRunner()
+    monkeypatch.setattr(main.uvicorn, "run", lambda *a, **kw: None)
+    result = runner.invoke(main.cli, ["start", "--mode", "mock", "--mcp-mode", "mock"])
+    assert result.exit_code == 0
+    assert main.config is not None
+    assert main.config.mcp_mode == "mock"
+
+
+def test_start_mcp_proxy_mode_requires_upstream_url(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    from typer.testing import CliRunner
+    runner = CliRunner()
+    monkeypatch.setattr(main.uvicorn, "run", lambda *a, **kw: None)
+    result = runner.invoke(main.cli, ["start", "--mode", "mock", "--mcp-mode", "proxy", "--mcp-upstream-transport", "http"])
+    assert result.exit_code != 0 or "mcp-upstream-url" in (result.output + str(result.exception or ""))
+
+
+def test_start_mcp_proxy_mode_requires_command_for_stdio(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    from typer.testing import CliRunner
+    runner = CliRunner()
+    monkeypatch.setattr(main.uvicorn, "run", lambda *a, **kw: None)
+    result = runner.invoke(main.cli, ["start", "--mode", "mock", "--mcp-mode", "proxy", "--mcp-upstream-transport", "stdio"])
+    assert result.exit_code != 0 or "mcp-upstream-command" in (result.output + str(result.exception or ""))
+
+
+def test_start_mcp_config_from_yaml(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    config_content = (
+        "mode: mock\n"
+        "mcp_mode: mock\n"
+        "mcp_upstream_transport: sse\n"
+        "mcp_upstream_url: http://mcp.example.com\n"
+        "mcp_fail_rate: 0.25\n"
+        "mcp_error_codes:\n"
+        "  - 429\n"
+        "  - 503\n"
+    )
+    (tmp_path / "config.yaml").write_text(config_content, encoding="utf-8")
+    from typer.testing import CliRunner
+    runner = CliRunner()
+    monkeypatch.setattr(main.uvicorn, "run", lambda *a, **kw: None)
+    result = runner.invoke(main.cli, ["start", "--config", str(tmp_path / "config.yaml")])
+    assert result.exit_code == 0
+    assert main.config is not None
+    assert main.config.mcp_mode == "mock"
+    assert main.config.mcp_upstream_transport == "sse"
+    assert main.config.mcp_upstream_url == "http://mcp.example.com"
+    assert main.config.mcp_fail_rate == 0.25
+    assert main.config.mcp_error_codes == (429, 503)
+
+
+def test_start_mcp_upstream_command_as_string(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    config_content = (
+        "mode: mock\n"
+        "mcp_mode: proxy\n"
+        "mcp_upstream_transport: stdio\n"
+        "mcp_upstream_command: python my_server.py\n"
+    )
+    (tmp_path / "config.yaml").write_text(config_content, encoding="utf-8")
+    from typer.testing import CliRunner
+    runner = CliRunner()
+    monkeypatch.setattr(main.uvicorn, "run", lambda *a, **kw: None)
+    result = runner.invoke(main.cli, ["start", "--config", str(tmp_path / "config.yaml")])
+    assert result.exit_code == 0
+    assert main.config is not None
+    assert main.config.mcp_upstream_command == ("python", "my_server.py")
+
+
+def test_start_mcp_upstream_command_as_list(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    config_content = (
+        "mode: mock\n"
+        "mcp_mode: proxy\n"
+        "mcp_upstream_transport: stdio\n"
+        "mcp_upstream_command:\n"
+        "  - python\n"
+        "  - my_server.py\n"
+    )
+    (tmp_path / "config.yaml").write_text(config_content, encoding="utf-8")
+    from typer.testing import CliRunner
+    runner = CliRunner()
+    monkeypatch.setattr(main.uvicorn, "run", lambda *a, **kw: None)
+    result = runner.invoke(main.cli, ["start", "--config", str(tmp_path / "config.yaml")])
+    assert result.exit_code == 0
+    assert main.config is not None
+    assert main.config.mcp_upstream_command == ("python", "my_server.py")
+
+
+def test_start_mcp_mode_invalid_value(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    from typer.testing import CliRunner
+    runner = CliRunner()
+    monkeypatch.setattr(main.uvicorn, "run", lambda *a, **kw: None)
+    result = runner.invoke(main.cli, ["start", "--mode", "mock", "--mcp-mode", "bogus"])
+    assert result.exit_code != 0
+
+
+def test_start_mcp_transport_invalid_value(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    from typer.testing import CliRunner
+    runner = CliRunner()
+    monkeypatch.setattr(main.uvicorn, "run", lambda *a, **kw: None)
+    result = runner.invoke(main.cli, ["start", "--mode", "mock", "--mcp-mode", "mock", "--mcp-upstream-transport", "grpc"])
+    assert result.exit_code != 0
+
+
 def test_proxy_mode_forwards_to_fake_upstream() -> None:
     reset_state()
     server, upstream_url = start_fake_upstream()

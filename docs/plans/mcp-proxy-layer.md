@@ -77,14 +77,14 @@ MCP is a JSON-RPC 2.0 protocol used by Claude Code and other AI tools to interac
 
 ### Task 6: Add MCP configuration support
 
-- [ ] Extend `Config` dataclass with MCP-specific fields
-- [ ] Add `mcp_mode` field: "disabled", "mock", "proxy"
-- [ ] Add `mcp_upstream_transport` field: "stdio", "sse", "http"
-- [ ] Add `mcp_upstream_command` for stdio servers
-- [ ] Add `mcp_upstream_url` for HTTP/SSE servers
-- [ ] Add `mcp_fail_rate` and `mcp_error_codes` configuration
-- [ ] Update `config.example.yaml` with MCP examples
-- [ ] Update CLI with `--mcp-mode` and related flags
+- [x] Extend `Config` dataclass with MCP-specific fields
+- [x] Add `mcp_mode` field: "disabled", "mock", "proxy"
+- [x] Add `mcp_upstream_transport` field: "stdio", "sse", "http"
+- [x] Add `mcp_upstream_command` for stdio servers
+- [x] Add `mcp_upstream_url` for HTTP/SSE servers
+- [x] Add `mcp_fail_rate` and `mcp_error_codes` configuration
+- [x] Update `config.example.yaml` with MCP examples
+- [x] Update CLI with `--mcp-mode` and related flags
 
 ### Task 7: Implement MCP scorecard and observability
 

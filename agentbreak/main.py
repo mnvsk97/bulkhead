@@ -42,6 +42,13 @@ class Config:
     latency_min: float = 5.0
     latency_max: float = 15.0
     seed: int | None = None
+    # MCP-specific configuration
+    mcp_mode: str = "disabled"  # "disabled", "mock", "proxy"
+    mcp_upstream_transport: str = "http"  # "http", "stdio", "sse"
+    mcp_upstream_command: tuple[str, ...] = ()
+    mcp_upstream_url: str = ""
+    mcp_fail_rate: float = 0.1
+    mcp_error_codes: tuple[int, ...] = DEFAULT_ERROR_CODES
 
 
 @dataclass
@@ -379,7 +386,9 @@ def install_signal_handlers() -> None:
         "Examples:\n"
         "  agentbreak start --mode mock --scenario mixed-transient\n"
         "  agentbreak start --mode proxy --upstream-url https://api.openai.com --scenario mixed-transient\n"
-        "  agentbreak start --config agentbreak.yaml"
+        "  agentbreak start --config agentbreak.yaml\n"
+        "  agentbreak start --mode mock --mcp-mode mock\n"
+        "  agentbreak start --mode mock --mcp-mode proxy --mcp-upstream-url http://localhost:8080"
     )
 )
 def start(
@@ -398,6 +407,16 @@ def start(
     latency_max: float | None = typer.Option(None, help="Maximum injected latency in seconds."),
     seed: int | None = typer.Option(None, help="Optional deterministic random seed."),
     port: int = typer.Option(PORT, help="Port to bind AgentBreak on."),
+    mcp_mode: str | None = typer.Option(None, "--mcp-mode", help="MCP proxy mode: disabled, mock, or proxy."),
+    mcp_upstream_url: str | None = typer.Option(None, "--mcp-upstream-url", help="Upstream MCP server base URL (http/sse transports)."),
+    mcp_upstream_transport: str | None = typer.Option(None, "--mcp-upstream-transport", help="Transport to upstream MCP server: http, stdio, or sse."),
+    mcp_upstream_command: str | None = typer.Option(None, "--mcp-upstream-command", help="Command for stdio MCP transport, e.g. 'python server.py'."),
+    mcp_fail_rate: float | None = typer.Option(None, "--mcp-fail-rate", help="Probability of injecting a fault into MCP requests."),
+    mcp_error_codes: str | None = typer.Option(
+        None,
+        "--mcp-error-codes",
+        help="Comma-separated HTTP-style codes for MCP fault injection. Supported: 400,401,403,404,413,429,500,503.",
+    ),
 ) -> None:
     global config
     file_config = maybe_load_config(config_path)
@@ -412,6 +431,12 @@ def start(
         latency_min=latency_min,
         latency_max=latency_max,
         seed=seed,
+        mcp_mode=mcp_mode,
+        mcp_upstream_url=mcp_upstream_url,
+        mcp_upstream_transport=mcp_upstream_transport,
+        mcp_upstream_command=mcp_upstream_command,
+        mcp_fail_rate=mcp_fail_rate,
+        mcp_error_codes=mcp_error_codes,
     ):
         raise typer.BadParameter(
             "No config.yaml found and no CLI settings were provided. "
@@ -455,6 +480,43 @@ def start(
         fail_rate, file_config.get("fail_rate", 0.1)
     )
 
+    # Resolve MCP-specific configuration
+    resolved_mcp_mode = choose(mcp_mode, file_config.get("mcp_mode", "disabled"))
+    if resolved_mcp_mode not in {"disabled", "mock", "proxy"}:
+        raise typer.BadParameter("mcp-mode must be 'disabled', 'mock', or 'proxy'")
+
+    resolved_mcp_upstream_transport = choose(
+        mcp_upstream_transport, file_config.get("mcp_upstream_transport", "http")
+    )
+    if resolved_mcp_upstream_transport not in {"http", "stdio", "sse"}:
+        raise typer.BadParameter("mcp-upstream-transport must be 'http', 'stdio', or 'sse'")
+
+    resolved_mcp_upstream_url = choose(mcp_upstream_url, file_config.get("mcp_upstream_url", ""))
+    resolved_mcp_upstream_command_raw = choose(
+        mcp_upstream_command, file_config.get("mcp_upstream_command", "")
+    )
+    if isinstance(resolved_mcp_upstream_command_raw, list):
+        resolved_mcp_upstream_command: tuple[str, ...] = tuple(str(x) for x in resolved_mcp_upstream_command_raw)
+    elif resolved_mcp_upstream_command_raw:
+        resolved_mcp_upstream_command = tuple(str(resolved_mcp_upstream_command_raw).split())
+    else:
+        resolved_mcp_upstream_command = ()
+
+    if resolved_mcp_mode == "proxy" and resolved_mcp_upstream_transport in {"http", "sse"} and not resolved_mcp_upstream_url:
+        raise typer.BadParameter("--mcp-upstream-url is required for http and sse MCP transports.")
+    if resolved_mcp_mode == "proxy" and resolved_mcp_upstream_transport == "stdio" and not resolved_mcp_upstream_command:
+        raise typer.BadParameter("--mcp-upstream-command is required for stdio MCP transport.")
+
+    resolved_mcp_fail_rate = choose(mcp_fail_rate, file_config.get("mcp_fail_rate", 0.1))
+
+    raw_mcp_error_codes = choose(mcp_error_codes, file_config.get("mcp_error_codes"))
+    if isinstance(raw_mcp_error_codes, list):
+        resolved_mcp_error_codes = parse_error_codes(",".join(str(c) for c in raw_mcp_error_codes))
+    elif raw_mcp_error_codes:
+        resolved_mcp_error_codes = parse_error_codes(str(raw_mcp_error_codes))
+    else:
+        resolved_mcp_error_codes = DEFAULT_ERROR_CODES
+
     config = Config(
         mode=resolved_mode,
         upstream_url=resolved_upstream_url,
@@ -465,6 +527,12 @@ def start(
         latency_min=resolved_latency_min,
         latency_max=resolved_latency_max,
         seed=resolved_seed,
+        mcp_mode=resolved_mcp_mode,
+        mcp_upstream_transport=resolved_mcp_upstream_transport,
+        mcp_upstream_command=resolved_mcp_upstream_command,
+        mcp_upstream_url=resolved_mcp_upstream_url,
+        mcp_fail_rate=clamp_probability(resolved_mcp_fail_rate),
+        mcp_error_codes=resolved_mcp_error_codes,
     )
     if config.seed is not None:
         random.seed(config.seed)
