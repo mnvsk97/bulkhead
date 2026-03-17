@@ -221,7 +221,6 @@ class SSETransport(MCPTransport):
         """Connect to the SSE stream and wait for the endpoint URL."""
         if self._started:
             return
-        self._started = True
         limits = httpx.Limits(
             max_connections=self.max_connections,
             max_keepalive_connections=self.max_keepalive_connections,
@@ -232,17 +231,22 @@ class SSETransport(MCPTransport):
         # Wait up to 5 seconds for the server to send the endpoint URL.
         for _ in range(50):
             if self._endpoint_url is not None:
+                self._started = True
                 return
             if self._sse_task is not None and self._sse_task.done() and not self._sse_task.cancelled():
                 task_exc = self._sse_task.exception()
-                self._started = False
                 await self._client.aclose()
                 self._client = None
                 if task_exc is not None:
                     raise RuntimeError(f"SSE upstream connection failed: {task_exc}") from task_exc
                 raise RuntimeError("SSE listener task terminated unexpectedly")
             await asyncio.sleep(0.1)
-        self._started = False
+        self._sse_task.cancel()
+        try:
+            await self._sse_task
+        except (asyncio.CancelledError, Exception):
+            pass
+        self._sse_task = None
         await self._client.aclose()
         self._client = None
         raise RuntimeError(

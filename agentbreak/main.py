@@ -611,7 +611,7 @@ def start(
             _mcp_app_mounted = True
     install_signal_handlers()
     try:
-        uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
+        uvicorn.run(app, host="0.0.0.0", port=port, log_level="warning")
     finally:
         print_scorecard()
         if resolved_mcp_mode != "disabled":
