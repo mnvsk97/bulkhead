@@ -33,7 +33,7 @@ def load_config(path: Optional[Path] = None) -> AgentBreakConfig:
             ]
         )
 
-    with path.open("r") as f:
+    with path.open("r", encoding="utf-8") as f:
         data = yaml.safe_load(f)
 
     return _parse_config(data)

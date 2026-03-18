@@ -70,9 +70,14 @@ class MultiServiceRunner:
         for server in self.servers:
             server.should_exit = True
 
-        for service in self.services.values():
+        # Cleanup all services, continuing even if some fail
+        for service_name, service in self.services.items():
             if hasattr(service, "cleanup"):
-                await service.cleanup()
+                try:
+                    await service.cleanup()
+                except Exception as exc:
+                    import logging
+                    logging.warning("Failed to cleanup service %s: %s", service_name, exc)
 
         self._print_scorecards()
 

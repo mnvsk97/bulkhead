@@ -2,17 +2,14 @@
 
 from __future__ import annotations
 
-import asyncio
 import httpx
 import logging
 from typing import Any
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse
 
-from agentbreak.config.models import OpenAIServiceConfig
 from agentbreak.core.fault_injection import FaultResult
 from agentbreak.core.proxy import BaseProxy, ProxyContext
-from agentbreak.core.statistics import StatisticsTracker
 from agentbreak.services.base import BaseService
 from agentbreak.utils.headers import filter_headers
 

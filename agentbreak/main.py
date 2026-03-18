@@ -128,7 +128,8 @@ def should_inject(probability: float) -> bool:
 
 
 def pick_error_code() -> int:
-    assert config is not None
+    if config is None:
+        raise RuntimeError("Configuration not initialized")
     if config.fault_weights:
         codes = [code for code, _ in config.fault_weights]
         weights = [weight for _, weight in config.fault_weights]
@@ -336,7 +337,8 @@ def filter_headers(headers: httpx.Headers) -> dict[str, str]:
 
 
 async def maybe_delay() -> None:
-    assert config is not None
+    if config is None:
+        raise RuntimeError("Configuration not initialized")
     if not should_inject(config.latency_p):
         return
     stats.latency_injections += 1
@@ -346,7 +348,8 @@ async def maybe_delay() -> None:
 
 @app.post("/v1/chat/completions")
 async def proxy_chat_completions(request: Request) -> Response:
-    assert config is not None
+    if config is None:
+        raise RuntimeError("Configuration not initialized")
     body = await request.body()
     await record_request(body)
 
@@ -671,7 +674,6 @@ def list_scenarios() -> None:
         fault = settings.get("fault", {})
         latency = settings.get("latency", {})
         codes = fault.get("available_codes", [429, 500, 503])
-        rate = fault.get("overall_rate", fault.get("per_error_rates", {}))
         lat_p = latency.get("probability", 0.0)
         print(f"  {name}")
         print(f"    codes: {codes}, latency_probability: {lat_p}")

@@ -3,18 +3,19 @@
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any
 
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse
 
-from agentbreak.config.models import MCPServiceConfig
 from agentbreak.core.fault_injection import FaultResult
 from agentbreak.core.proxy import BaseProxy, ProxyContext
-from agentbreak.core.statistics import StatisticsTracker
 from agentbreak.protocols.mcp import MCPError, MCPRequest, MCPResponse, PARSE_ERROR
 from agentbreak.services.base import BaseService
 from agentbreak.transports import create_transport
+
+logger = logging.getLogger(__name__)
 
 # Map HTTP-style error codes to MCP JSON-RPC error codes
 _HTTP_TO_MCP_ERROR: dict[int, tuple[int, str]] = {
@@ -42,7 +43,8 @@ class MCPProxy(BaseProxy):
             mcp_req = MCPRequest.from_json(body)
             method = mcp_req.method
             req_id = mcp_req.id
-        except Exception:
+        except (json.JSONDecodeError, ValueError) as exc:
+            logger.debug("Failed to parse MCP request: %s", exc)
             method = "unknown"
             req_id = None
 
@@ -88,13 +90,15 @@ class MCPProxy(BaseProxy):
                 else:
                     return False
             return "error" not in data
-        except Exception:
+        except (json.JSONDecodeError, TypeError, AttributeError) as exc:
+            logger.debug("Failed to parse MCP response for success check: %s", exc)
             return False
 
     async def _mock_mcp(self, context: ProxyContext) -> Response:
         try:
             mcp_req = MCPRequest.from_json(context.raw_body)
-        except Exception:
+        except (json.JSONDecodeError, ValueError) as exc:
+            logger.debug("Failed to parse MCP request in mock mode: %s", exc)
             return JSONResponse(
                 status_code=200,
                 content=MCPResponse(
