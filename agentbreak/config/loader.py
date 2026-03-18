@@ -41,9 +41,14 @@ def load_config(path: Optional[Path] = None) -> AgentBreakConfig:
 
 def _parse_config(data: dict[str, Any]) -> AgentBreakConfig:
     """Parse a config dict into an AgentBreakConfig, resolving service types."""
+    from .scenarios import apply_scenario
+
     services_data = data.get("services", [])
     services = []
     for svc in services_data:
+        scenario_name = svc.get("scenario")
+        if scenario_name:
+            svc = apply_scenario(svc, scenario_name)
         svc_type = svc.get("type", "openai")
         if svc_type == ServiceType.MCP or svc_type == "mcp":
             services.append(MCPServiceConfig.model_validate(svc))

@@ -1468,11 +1468,11 @@ fault:
 - [x] Update documentation
 
 ### Phase 5: Configuration & Scenarios (Week 4)
-- [ ] Implement scenario loading system
-- [ ] Create example config files
-- [ ] Update CLI `--config-file` flag
-- [ ] Migrate existing config.example.yaml
-- [ ] Update README with multi-service examples
+- [x] Implement scenario loading system
+- [x] Create example config files
+- [x] Update CLI `--config-file` flag
+- [x] Migrate existing config.example.yaml
+- [x] Update README with multi-service examples
 
 ### Phase 6: Testing & Cleanup (Week 4-5)
 - [ ] Write comprehensive test suite

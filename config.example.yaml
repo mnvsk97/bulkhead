@@ -1,42 +1,56 @@
-mode: proxy
-upstream_url: https://api.openai.com
-scenario: mixed-transient
-fail_rate: 0.2
-latency_p: 0.0
-latency_min: 5
-latency_max: 15
-# Advanced exact percentages of total requests.
-# If set, these override fail_rate for fault injection.
-faults:
-  "500": 0.3
-  "429": 0.2
+# AgentBreak multi-service config example.
+# Copy to config.yaml and run with: agentbreak run
+#
+# Run with: agentbreak run --config-file config.yaml
+#
+# Each service runs on its own port. Use 'scenario' to apply built-in
+# fault presets, or configure fault/latency directly.
+#
+# List available scenarios: agentbreak list-scenarios
 
-# MCP proxy configuration.
-# mcp_mode: disabled (default), mock, or proxy
-mcp_mode: disabled
+version: "1.0"
 
-# Transport to reach the upstream MCP server: http (default), stdio, or sse
-mcp_upstream_transport: http
+services:
+  # OpenAI-compatible LLM proxy
+  - name: openai
+    type: openai
+    mode: proxy
+    port: 5000
+    upstream_url: https://api.openai.com
 
-# Base URL for http/sse upstream MCP server (required when mcp_mode=proxy and transport is http/sse)
-# mcp_upstream_url: http://localhost:8080
+    # Apply a built-in scenario (sets fault and latency defaults):
+    scenario: mixed-transient
 
-# Command for stdio upstream MCP server (required when mcp_mode=proxy and transport is stdio).
-# Can be a string (split on whitespace) or a YAML list.
-# mcp_upstream_command: python my_mcp_server.py
-# mcp_upstream_command:
-#   - python
-#   - my_mcp_server.py
+    # Or configure fault injection manually (overrides scenario):
+    # fault:
+    #   overall_rate: 0.2
+    #   available_codes: [429, 500, 503]
+    #
+    # Per-code rates (each is independent - multiple can fire per request):
+    # fault:
+    #   per_error_rates:
+    #     429: 0.3
+    #     500: 0.2
+    #
+    # latency:
+    #   probability: 0.1
+    #   min_seconds: 5
+    #   max_seconds: 15
 
-# Probability of injecting a fault into MCP requests (0.0 to 1.0)
-mcp_fail_rate: 0.1
-
-# Probability of injecting latency into MCP requests (0.0 to 1.0)
-mcp_latency_p: 0.0
-
-# HTTP-style error codes to inject into MCP requests (mapped to JSON-RPC error codes internally).
-# Supported: 400, 401, 403, 404, 413, 429, 500, 503
-# mcp_error_codes:
-#   - 429
-#   - 500
-#   - 503
+  # MCP proxy (comment out if not using MCP)
+  # - name: mcp
+  #   type: mcp
+  #   mode: mock
+  #   port: 5001
+  #   scenario: mcp-mixed-transient
+  #
+  #   # Proxy to a real MCP server:
+  #   # mode: proxy
+  #   # upstream_transport: http
+  #   # upstream_url: http://localhost:8080
+  #
+  #   # Or stdio transport:
+  #   # upstream_transport: stdio
+  #   # upstream_command:
+  #   #   - python
+  #   #   - my_mcp_server.py

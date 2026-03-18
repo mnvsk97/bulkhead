@@ -643,16 +643,37 @@ def run_multi_service(
         "--config-file",
         "-c",
         help="Path to multi-service config YAML file.",
-        exists=False,
     ),
 ) -> None:
     """Run multiple AgentBreak services from a config file."""
     from agentbreak.config import load_config  # noqa: PLC0415
     from agentbreak.runner import MultiServiceRunner  # noqa: PLC0415
 
+    if not config_file.exists():
+        raise typer.BadParameter(
+            f"Config file not found: {config_file}. "
+            "Create a YAML file or use 'agentbreak start' for single-service mode."
+        )
     cfg = load_config(config_file)
     runner = MultiServiceRunner(cfg)
     asyncio.run(runner.start())
+
+
+@cli.command("list-scenarios")
+def list_scenarios() -> None:
+    """List available built-in fault scenarios."""
+    from agentbreak.config.scenarios import SCENARIOS  # noqa: PLC0415
+
+    print("Available built-in scenarios:\n")
+    for name, settings in SCENARIOS.items():
+        fault = settings.get("fault", {})
+        latency = settings.get("latency", {})
+        codes = fault.get("available_codes", [429, 500, 503])
+        rate = fault.get("overall_rate", fault.get("per_error_rates", {}))
+        lat_p = latency.get("probability", 0.0)
+        print(f"  {name}")
+        print(f"    codes: {codes}, latency_probability: {lat_p}")
+    print()
 
 
 def _register_mcp_subcommands() -> None:

@@ -71,6 +71,7 @@ class ServiceConfig(BaseModel):
     fault: FaultConfig = Field(default_factory=FaultConfig)
     latency: LatencyConfig = Field(default_factory=LatencyConfig)
     seed: Optional[int] = None
+    scenario: Optional[str] = None
 
 
 class OpenAIServiceConfig(ServiceConfig):

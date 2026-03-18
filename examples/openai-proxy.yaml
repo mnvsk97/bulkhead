@@ -1,0 +1,23 @@
+# Single OpenAI proxy with rate-limiting scenario.
+# Run with: agentbreak run --config-file examples/openai-proxy.yaml
+#
+# Point your app at http://localhost:5000/v1
+
+version: "1.0"
+
+services:
+  - name: openai
+    type: openai
+    mode: proxy
+    port: 5000
+    upstream_url: https://api.openai.com
+    scenario: rate-limited
+
+    # Override scenario defaults with explicit fault config:
+    # fault:
+    #   overall_rate: 0.3
+    #   available_codes: [429, 500]
+    # latency:
+    #   probability: 0.1
+    #   min_seconds: 2
+    #   max_seconds: 8

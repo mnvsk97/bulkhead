@@ -1,0 +1,22 @@
+# Multi-service AgentBreak example.
+# Run with: agentbreak run --config-file examples/multi-service.yaml
+#
+# This starts two proxies simultaneously:
+#   - OpenAI proxy on port 5000 with brownout scenario
+#   - MCP proxy on port 5001 with mixed transient failures
+
+version: "1.0"
+
+services:
+  - name: openai
+    type: openai
+    mode: mock
+    port: 5000
+    upstream_url: https://api.openai.com
+    scenario: brownout
+
+  - name: mcp
+    type: mcp
+    mode: mock
+    port: 5001
+    scenario: mcp-mixed-transient

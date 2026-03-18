@@ -1,0 +1,21 @@
+# MCP proxy example.
+# Run with: agentbreak run --config-file examples/mcp-proxy.yaml
+#
+# Point your MCP client at http://localhost:5001/mcp
+
+version: "1.0"
+
+services:
+  - name: mcp
+    type: mcp
+    mode: proxy
+    port: 5001
+    upstream_transport: http
+    upstream_url: http://localhost:8080
+    scenario: mcp-tool-failures
+
+    # Stdio transport example (uncomment to use):
+    # upstream_transport: stdio
+    # upstream_command:
+    #   - python
+    #   - my_mcp_server.py

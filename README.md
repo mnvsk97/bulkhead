@@ -118,10 +118,46 @@ Fastest setup:
 
 ```bash
 cp config.example.yaml config.yaml
-agentbreak start
+agentbreak run
 ```
 
-CLI flags override config values.
+CLI flags override config values for the legacy `agentbreak start` command.
+
+## Multi-Service Config
+
+Run an OpenAI proxy and an MCP proxy simultaneously from a single config file:
+
+```yaml
+version: "1.0"
+
+services:
+  - name: openai
+    type: openai
+    mode: mock
+    port: 5000
+    upstream_url: https://api.openai.com
+    scenario: brownout
+
+  - name: mcp
+    type: mcp
+    mode: mock
+    port: 5001
+    scenario: mcp-mixed-transient
+```
+
+Run with:
+
+```bash
+agentbreak run --config-file config.yaml
+```
+
+List available built-in scenarios:
+
+```bash
+agentbreak list-scenarios
+```
+
+See `examples/` for more config examples.
 
 ## Examples
 
