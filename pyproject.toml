@@ -47,6 +47,8 @@ packages = [
   "agentbreak",
   "agentbreak.config",
   "agentbreak.core",
+  "agentbreak.protocols",
+  "agentbreak.services",
   "agentbreak.transports",
   "agentbreak.utils",
 ]

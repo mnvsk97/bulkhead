@@ -1454,11 +1454,11 @@ fault:
 - [x] Move `mcp_transport.py` to `transports/` directory
 
 ### Phase 3: Service Implementations (Week 2-3)
-- [ ] Implement `services/base.py`
-- [ ] Implement `services/openai.py` (refactor from main.py)
-- [ ] Implement `services/mcp.py` (refactor from mcp_proxy.py)
-- [ ] Write integration tests for services
-- [ ] Move protocol definitions to `protocols/`
+- [x] Implement `services/base.py`
+- [x] Implement `services/openai.py` (refactor from main.py)
+- [x] Implement `services/mcp.py` (refactor from mcp_proxy.py)
+- [x] Write integration tests for services
+- [x] Move protocol definitions to `protocols/`
 
 ### Phase 4: Multi-Service Support (Week 3)
 - [ ] Implement `agentbreak/runner.py`
