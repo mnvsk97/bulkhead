@@ -63,22 +63,22 @@ class BaseProxy(ABC):
         # Phase 1: Fault injection check
         fault_result = await self.fault_injector.maybe_inject(context)
         if fault_result is not None:
-            self.stats.record_fault(context.service_name)
+            await self.stats.record_fault(context.service_name)
             return self._create_error_response(context, fault_result)
 
         # Phase 2: Latency injection
         injected_delay = await self.latency_injector.maybe_delay(context)
         if injected_delay is not None:
-            self.stats.record_latency(context.service_name)
+            await self.stats.record_latency(context.service_name)
 
         # Phase 3: Upstream/mock processing
         response = await self._process_request(request, context)
 
         # Phase 4: Response recording
         if self._is_success(response):
-            self.stats.record_success(context.service_name)
+            await self.stats.record_success(context.service_name)
         else:
-            self.stats.record_failure(context.service_name)
+            await self.stats.record_failure(context.service_name)
 
         return response
 

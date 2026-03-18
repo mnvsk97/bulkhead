@@ -166,17 +166,17 @@ async def test_statistics_tracker_detects_loops() -> None:
     assert stats.suspected_loops == 1
 
 
-def test_statistics_tracker_record_fault() -> None:
+async def test_statistics_tracker_record_fault() -> None:
     tracker = StatisticsTracker()
-    tracker.record_fault("svc")
+    await tracker.record_fault("svc")
     stats = tracker.get_service_stats("svc")
     assert stats.injected_faults == 1
     assert stats.upstream_failures == 1
 
 
-def test_statistics_tracker_record_latency() -> None:
+async def test_statistics_tracker_record_latency() -> None:
     tracker = StatisticsTracker()
-    tracker.record_latency("svc")
+    await tracker.record_latency("svc")
     stats = tracker.get_service_stats("svc")
     assert stats.latency_injections == 1
 
@@ -184,7 +184,7 @@ def test_statistics_tracker_record_latency() -> None:
 async def test_statistics_tracker_scorecard_pass() -> None:
     tracker = StatisticsTracker()
     await tracker.record_request("svc", b"body")
-    tracker.record_success("svc")
+    await tracker.record_success("svc")
     card = tracker.generate_scorecard("svc")
     assert card["run_outcome"] == "PASS"
     assert card["resilience_score"] == 100
@@ -193,7 +193,7 @@ async def test_statistics_tracker_scorecard_pass() -> None:
 async def test_statistics_tracker_scorecard_fail() -> None:
     tracker = StatisticsTracker()
     await tracker.record_request("svc", b"body")
-    tracker.record_fault("svc")
+    await tracker.record_fault("svc")
     card = tracker.generate_scorecard("svc")
     assert card["run_outcome"] == "FAIL"
     assert card["resilience_score"] < 100
@@ -202,9 +202,9 @@ async def test_statistics_tracker_scorecard_fail() -> None:
 async def test_statistics_tracker_scorecard_degraded() -> None:
     tracker = StatisticsTracker()
     await tracker.record_request("svc", b"a")
-    tracker.record_success("svc")
+    await tracker.record_success("svc")
     await tracker.record_request("svc", b"b")
-    tracker.record_fault("svc")
+    await tracker.record_fault("svc")
     card = tracker.generate_scorecard("svc")
     assert card["run_outcome"] == "DEGRADED"
 

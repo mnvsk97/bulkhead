@@ -112,7 +112,7 @@ async def test_metrics_routes_reflect_stats():
     setup_metrics_routes(app, "svc", stats)
     # Record some activity
     await stats.record_request("svc", b"req-1", "test")
-    stats.record_success("svc")
+    await stats.record_success("svc")
     client = TestClient(app)
     resp = client.get("/_agentbreak/svc/scorecard")
     assert resp.json()["requests_seen"] == 1

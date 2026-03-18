@@ -37,3 +37,8 @@ class BaseService(ABC):
     def get_app(self) -> FastAPI:
         """Return the FastAPI application."""
         return self.app
+
+    async def close(self) -> None:
+        """Close any resources held by the service."""
+        if hasattr(self.proxy, 'close'):
+            await self.proxy.close()

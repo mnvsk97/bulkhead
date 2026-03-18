@@ -794,7 +794,7 @@ class TestNewArchitecturePerformance:
         start = time.monotonic()
         for i in range(n):
             await stats.record_request("svc", f"req-{i}".encode(), "chat/completions")
-            stats.record_success("svc")
+            await stats.record_success("svc")
         elapsed = time.monotonic() - start
 
         assert elapsed < 2.0, f"1000 stats operations took {elapsed:.2f}s"

@@ -62,26 +62,30 @@ class StatisticsTracker:
                 {"fingerprint": fingerprint, "count": seen, "method": method}
             )
 
-    def record_fault(self, service_name: str) -> None:
+    async def record_fault(self, service_name: str) -> None:
         """Record an injected fault."""
         stats = self.get_service_stats(service_name)
-        stats.injected_faults += 1
-        stats.upstream_failures += 1
+        async with stats._lock:
+            stats.injected_faults += 1
+            stats.upstream_failures += 1
 
-    def record_latency(self, service_name: str) -> None:
+    async def record_latency(self, service_name: str) -> None:
         """Record a latency injection."""
         stats = self.get_service_stats(service_name)
-        stats.latency_injections += 1
+        async with stats._lock:
+            stats.latency_injections += 1
 
-    def record_success(self, service_name: str) -> None:
+    async def record_success(self, service_name: str) -> None:
         """Record a successful upstream call."""
         stats = self.get_service_stats(service_name)
-        stats.upstream_successes += 1
+        async with stats._lock:
+            stats.upstream_successes += 1
 
-    def record_failure(self, service_name: str) -> None:
+    async def record_failure(self, service_name: str) -> None:
         """Record an upstream failure (non-injected)."""
         stats = self.get_service_stats(service_name)
-        stats.upstream_failures += 1
+        async with stats._lock:
+            stats.upstream_failures += 1
 
     def generate_scorecard(self, service_name: str) -> dict[str, Any]:
         """Generate a resilience scorecard for a service."""

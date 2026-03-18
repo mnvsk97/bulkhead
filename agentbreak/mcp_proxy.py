@@ -167,6 +167,8 @@ class MCPStats:
     # Throughput metrics
     requests_per_second: float = 0.0
     session_start_time: float = field(default_factory=time.monotonic)
+    # Lock for thread-safe updates to shared state
+    _lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
 
 
@@ -180,6 +182,9 @@ _sse_transport: SSETransport | None = None
 _upstream_http_client: httpx.AsyncClient | None = None
 # Response cache: maps cache key -> (result_dict, expiry_timestamp).
 _response_cache: dict[str, tuple[dict[str, Any], float]] = {}
+# Locks for thread-safe access
+_cache_lock: asyncio.Lock = asyncio.Lock()
+_client_lock: asyncio.Lock = asyncio.Lock()
 
 # Methods whose responses can be safely cached (read-only, rarely change).
 _CACHEABLE_METHODS = frozenset({"resources/list", "tools/list", "prompts/list"})
@@ -214,45 +219,47 @@ def mcp_error_response(request_id: str | int | None, error: MCPError) -> dict[st
     return MCPResponse(id=request_id, error=error).to_dict()
 
 
-def record_mcp_request(mcp_req: MCPRequest, raw_body: bytes) -> None:
-    mcp_stats.total_requests += 1
-    mcp_stats.method_counts[mcp_req.method] += 1
-
+async def record_mcp_request(mcp_req: MCPRequest, raw_body: bytes) -> None:
     fp = fingerprint_mcp_request(mcp_req)
-    mcp_stats.seen_fingerprints[fp] += 1
-    seen = mcp_stats.seen_fingerprints[fp]
-    if seen > 1:
-        mcp_stats.duplicate_requests += 1
-    if seen > 2:
-        mcp_stats.suspected_loops += 1
-
-    if mcp_req.method == "tools/call":
-        mcp_stats.tool_calls += 1
-    elif mcp_req.method == "resources/read":
-        mcp_stats.resource_reads += 1
-    elif mcp_req.method == "initialize":
-        mcp_stats.init_requests += 1
-
     try:
         payload: Any = json.loads(raw_body.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError):
         payload = {"raw": raw_body.decode("utf-8", errors="replace")}
 
-    mcp_stats.recent_requests.append({
-        "fingerprint": fp,
-        "count": seen,
-        "method": mcp_req.method,
-        "body": payload,
-    })
-    if len(mcp_stats.recent_requests) > 20:
-        mcp_stats.recent_requests.pop(0)
+    async with mcp_stats._lock:
+        mcp_stats.total_requests += 1
+        mcp_stats.method_counts[mcp_req.method] += 1
+
+        mcp_stats.seen_fingerprints[fp] += 1
+        seen = mcp_stats.seen_fingerprints[fp]
+        if seen > 1:
+            mcp_stats.duplicate_requests += 1
+        if seen > 2:
+            mcp_stats.suspected_loops += 1
+
+        if mcp_req.method == "tools/call":
+            mcp_stats.tool_calls += 1
+        elif mcp_req.method == "resources/read":
+            mcp_stats.resource_reads += 1
+        elif mcp_req.method == "initialize":
+            mcp_stats.init_requests += 1
+
+        mcp_stats.recent_requests.append({
+            "fingerprint": fp,
+            "count": seen,
+            "method": mcp_req.method,
+            "body": payload,
+        })
+        if len(mcp_stats.recent_requests) > 20:
+            mcp_stats.recent_requests.pop(0)
 
 
 async def maybe_delay() -> None:
     config = _get_config()
     if not should_inject(config.latency_p):
         return
-    mcp_stats.latency_injections += 1
+    async with mcp_stats._lock:
+        mcp_stats.latency_injections += 1
     delay = random.uniform(config.latency_min, config.latency_max)
     await asyncio.sleep(delay)
 
@@ -262,36 +269,49 @@ def _cache_key(method: str, params: dict[str, Any] | None) -> str:
     return f"{method}:{params_str}"
 
 
-def _get_from_cache(method: str, params: dict[str, Any] | None) -> dict[str, Any] | None:
+_MAX_CACHE_SIZE = 1000
+
+
+async def _get_from_cache(method: str, params: dict[str, Any] | None) -> dict[str, Any] | None:
     """Return cached result if present and not expired, else None."""
     key = _cache_key(method, params)
-    entry = _response_cache.get(key)
-    if entry is None:
-        return None
-    result, expiry = entry
-    if time.monotonic() > expiry:
-        del _response_cache[key]
-        return None
-    return result
+    async with _cache_lock:
+        entry = _response_cache.get(key)
+        if entry is None:
+            return None
+        result, expiry = entry
+        if time.monotonic() > expiry:
+            del _response_cache[key]
+            return None
+        return result
 
 
-def _put_in_cache(method: str, params: dict[str, Any] | None, result: dict[str, Any]) -> None:
+async def _put_in_cache(method: str, params: dict[str, Any] | None, result: dict[str, Any]) -> None:
     """Store a result in the response cache with the configured TTL."""
     config = _get_config()
     key = _cache_key(method, params)
-    _response_cache[key] = (result, time.monotonic() + config.cache_ttl)
+    async with _cache_lock:
+        _response_cache[key] = (result, time.monotonic() + config.cache_ttl)
+        # Evict oldest entry if cache is too large
+        if len(_response_cache) > _MAX_CACHE_SIZE:
+            oldest_key = min(
+                _response_cache.keys(),
+                key=lambda k: _response_cache[k][1]
+            )
+            del _response_cache[oldest_key]
 
 
 async def _get_upstream_http_client() -> httpx.AsyncClient:
     """Return the shared upstream HTTP client, creating it on first call."""
     global _upstream_http_client
     config = _get_config()
-    if _upstream_http_client is None:
-        _upstream_http_client = httpx.AsyncClient(
-            timeout=config.upstream_timeout,
-            limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
-        )
-        mcp_stats.http_pool_size = 20
+    async with _client_lock:
+        if _upstream_http_client is None:
+            _upstream_http_client = httpx.AsyncClient(
+                timeout=config.upstream_timeout,
+                limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
+            )
+            mcp_stats.http_pool_size = 20
     return _upstream_http_client
 
 
@@ -622,7 +642,7 @@ async def _process_single_mcp_request(
         return mcp_error_response(raw.get("id"), MCPError(code=INVALID_REQUEST, message=f"Invalid Request: {exc}"))
     mcp_stats.parse_time_ms += (time.monotonic() - parse_start) * 1000
 
-    record_mcp_request(mcp_req, body)
+    await record_mcp_request(mcp_req, body)
 
     # Phase 2: Fault injection check
     fault_check_start = time.monotonic()
@@ -645,7 +665,7 @@ async def _process_single_mcp_request(
     # Phase 3: Cache lookup (for cacheable methods)
     cache_start = time.monotonic()
     if mcp_req.method in _CACHEABLE_METHODS:
-        cached = _get_from_cache(mcp_req.method, mcp_req.params)
+        cached = await _get_from_cache(mcp_req.method, mcp_req.params)
         mcp_stats.cache_lookup_time_ms += (time.monotonic() - cache_start) * 1000
         if cached is not None:
             mcp_stats.cache_hits += 1
@@ -668,7 +688,7 @@ async def _process_single_mcp_request(
         result = generate_mock_result(mcp_req.method, mcp_req.params, mcp_config)
         _record_method_outcome(mcp_req, True)
         if mcp_req.method in _CACHEABLE_METHODS:
-            _put_in_cache(mcp_req.method, mcp_req.params, result)
+            await _put_in_cache(mcp_req.method, mcp_req.params, result)
     else:
         transport = mcp_config.upstream_transport
         if transport == "stdio":
@@ -693,7 +713,7 @@ async def _process_single_mcp_request(
         # Populate cache for successful list responses.
         if is_success and mcp_req.method in _CACHEABLE_METHODS:
             result_payload = resp_dict.get("result") if resp_dict.get("result") is not None else {}
-            _put_in_cache(mcp_req.method, mcp_req.params, result_payload)
+            await _put_in_cache(mcp_req.method, mcp_req.params, result_payload)
         _record_method_outcome(mcp_req, is_success)
         mcp_stats.upstream_time_ms += (time.monotonic() - upstream_start) * 1000
         elapsed = (time.monotonic() - start_time) * 1000
@@ -898,6 +918,17 @@ def start(
     try:
         uvicorn.run(app, host="0.0.0.0", port=port, log_level="warning")
     finally:
+        # Cleanup resources
+        if _upstream_http_client is not None:
+            asyncio.run(_upstream_http_client.aclose())
+        if _stdio_transport is not None:
+            asyncio.run(_stdio_transport.stop())
+        if _sse_transport is not None:
+            asyncio.run(_sse_transport.stop())
+        _upstream_http_client = None
+        _stdio_transport = None
+        _sse_transport = None
+        _response_cache.clear()
         print_scorecard()
 
 

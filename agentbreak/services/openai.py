@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import httpx
 import logging
+from typing import Any
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse
 
@@ -19,6 +21,10 @@ logger = logging.getLogger(__name__)
 
 class OpenAIProxy(BaseProxy):
     """Proxy implementation for OpenAI-compatible APIs."""
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._client: httpx.AsyncClient | None = None
 
     async def _create_context(self, request: Request, body: bytes) -> ProxyContext:
         return ProxyContext.create(
@@ -66,26 +72,35 @@ class OpenAIProxy(BaseProxy):
             },
         )
 
+    async def _get_client(self) -> httpx.AsyncClient:
+        """Get or create the shared HTTP client."""
+        if self._client is None:
+            self._client = httpx.AsyncClient(
+                timeout=self.config.upstream_timeout,
+                limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
+            )
+        return self._client
+
     async def _proxy_upstream(self, body: bytes, request: Request) -> Response:
-        async with httpx.AsyncClient(timeout=self.config.upstream_timeout) as client:
-            try:
-                response = await client.post(
-                    f"{self.config.upstream_url.rstrip('/')}/v1/chat/completions",
-                    content=body,
-                    headers=filter_headers(request.headers),
-                )
-            except httpx.HTTPError as exc:
-                logger.error("Upstream connection error: %s", exc)
-                return JSONResponse(
-                    status_code=502,
-                    content={
-                        "error": {
-                            "message": "AgentBreak could not reach upstream service",
-                            "type": "upstream_connection_error",
-                            "code": 502,
-                        }
-                    },
-                )
+        client = await self._get_client()
+        try:
+            response = await client.post(
+                f"{self.config.upstream_url.rstrip('/')}/v1/chat/completions",
+                content=body,
+                headers=filter_headers(request.headers),
+            )
+        except httpx.HTTPError as exc:
+            logger.error("Upstream connection error: %s", exc)
+            return JSONResponse(
+                status_code=502,
+                content={
+                    "error": {
+                        "message": "AgentBreak could not reach upstream service",
+                        "type": "upstream_connection_error",
+                        "code": 502,
+                    }
+                },
+            )
 
         return Response(
             content=response.content,
@@ -93,6 +108,12 @@ class OpenAIProxy(BaseProxy):
             headers=filter_headers(response.headers),
             media_type=response.headers.get("content-type"),
         )
+
+    async def close(self) -> None:
+        """Close the HTTP client."""
+        if self._client is not None:
+            await self._client.aclose()
+            self._client = None
 
 
 class OpenAIService(BaseService):
