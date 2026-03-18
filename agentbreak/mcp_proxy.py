@@ -367,20 +367,21 @@ def filter_headers(headers: httpx.Headers) -> dict[str, str]:
 
 
 
-def _record_method_outcome(mcp_req: MCPRequest, is_success: bool) -> None:
-    """Update per-tool and per-URI success/failure counters."""
-    if mcp_req.method == "tools/call":
-        tool_name = (mcp_req.params or {}).get("name", "unknown")
-        if is_success:
-            mcp_stats.tool_successes_by_name[tool_name] += 1
-        else:
-            mcp_stats.tool_failures_by_name[tool_name] += 1
-    elif mcp_req.method == "resources/read":
-        uri = (mcp_req.params or {}).get("uri", "unknown")
-        if is_success:
-            mcp_stats.resource_reads_by_uri[uri] += 1
-        else:
-            mcp_stats.resource_failures_by_uri[uri] += 1
+async def _record_method_outcome(mcp_req: MCPRequest, is_success: bool) -> None:
+    """Update per-tool and per-URI success/failure counters with lock protection."""
+    async with mcp_stats._lock:
+        if mcp_req.method == "tools/call":
+            tool_name = (mcp_req.params or {}).get("name", "unknown")
+            if is_success:
+                mcp_stats.tool_successes_by_name[tool_name] += 1
+            else:
+                mcp_stats.tool_failures_by_name[tool_name] += 1
+        elif mcp_req.method == "resources/read":
+            uri = (mcp_req.params or {}).get("uri", "unknown")
+            if is_success:
+                mcp_stats.resource_reads_by_uri[uri] += 1
+            else:
+                mcp_stats.resource_failures_by_uri[uri] += 1
 
 
 def scorecard_data() -> dict[str, Any]:
@@ -636,11 +637,14 @@ async def _process_single_mcp_request(
         mcp_req._json_bytes = body  # cache original bytes to skip re-serialization
     except (ValueError, KeyError) as exc:
         parse_elapsed = (time.monotonic() - parse_start) * 1000
-        mcp_stats.parse_time_ms += parse_elapsed
         elapsed = (time.monotonic() - start_time) * 1000
-        mcp_stats.total_processing_time_ms += elapsed
+        async with mcp_stats._lock:
+            mcp_stats.parse_time_ms += parse_elapsed
+            mcp_stats.total_processing_time_ms += elapsed
         return mcp_error_response(raw.get("id"), MCPError(code=INVALID_REQUEST, message=f"Invalid Request: {exc}"))
-    mcp_stats.parse_time_ms += (time.monotonic() - parse_start) * 1000
+    parse_elapsed = (time.monotonic() - parse_start) * 1000
+    async with mcp_stats._lock:
+        mcp_stats.parse_time_ms += parse_elapsed
 
     await record_mcp_request(mcp_req, body)
 
@@ -648,14 +652,17 @@ async def _process_single_mcp_request(
     fault_check_start = time.monotonic()
     method_faultable = mcp_config.fault_methods is None or mcp_req.method in mcp_config.fault_methods
     should_fault = method_faultable and should_inject(mcp_config.fail_rate)
-    mcp_stats.fault_check_time_ms += (time.monotonic() - fault_check_start) * 1000
+    fault_check_elapsed = (time.monotonic() - fault_check_start) * 1000
+    async with mcp_stats._lock:
+        mcp_stats.fault_check_time_ms += fault_check_elapsed
 
     if should_fault:
         error = pick_mcp_error()
-        mcp_stats.injected_faults += 1
-        _record_method_outcome(mcp_req, False)
         elapsed = (time.monotonic() - start_time) * 1000
-        mcp_stats.total_processing_time_ms += elapsed
+        async with mcp_stats._lock:
+            mcp_stats.injected_faults += 1
+            mcp_stats.total_processing_time_ms += elapsed
+        await _record_method_outcome(mcp_req, False)
         return mcp_error_response(mcp_req.id, error)
 
     method_delayable = mcp_config.latency_methods is None or mcp_req.method in mcp_config.latency_methods
@@ -666,27 +673,36 @@ async def _process_single_mcp_request(
     cache_start = time.monotonic()
     if mcp_req.method in _CACHEABLE_METHODS:
         cached = await _get_from_cache(mcp_req.method, mcp_req.params)
-        mcp_stats.cache_lookup_time_ms += (time.monotonic() - cache_start) * 1000
+        cache_lookup_elapsed = (time.monotonic() - cache_start) * 1000
+        async with mcp_stats._lock:
+            mcp_stats.cache_lookup_time_ms += cache_lookup_elapsed
         if cached is not None:
-            mcp_stats.cache_hits += 1
-            _record_method_outcome(mcp_req, True)
+            async with mcp_stats._lock:
+                mcp_stats.cache_hits += 1
+            await _record_method_outcome(mcp_req, True)
             # Phase 5: Serialize response (for cache hits)
             serialize_start = time.monotonic()
             response = MCPResponse(id=mcp_req.id, result=cached).to_dict()
-            mcp_stats.serialization_time_ms += (time.monotonic() - serialize_start) * 1000
+            serialization_elapsed = (time.monotonic() - serialize_start) * 1000
             elapsed = (time.monotonic() - start_time) * 1000
-            mcp_stats.total_processing_time_ms += elapsed
+            async with mcp_stats._lock:
+                mcp_stats.serialization_time_ms += serialization_elapsed
+                mcp_stats.total_processing_time_ms += elapsed
             return response
-        mcp_stats.cache_misses += 1
+        async with mcp_stats._lock:
+            mcp_stats.cache_misses += 1
     else:
-        mcp_stats.cache_lookup_time_ms += (time.monotonic() - cache_start) * 1000
+        cache_lookup_elapsed = (time.monotonic() - cache_start) * 1000
+        async with mcp_stats._lock:
+            mcp_stats.cache_lookup_time_ms += cache_lookup_elapsed
 
     # Phase 4: Upstream request / mock response
     upstream_start = time.monotonic()
     if mcp_config.mode == "mock":
-        mcp_stats.upstream_successes += 1
+        async with mcp_stats._lock:
+            mcp_stats.upstream_successes += 1
         result = generate_mock_result(mcp_req.method, mcp_req.params, mcp_config)
-        _record_method_outcome(mcp_req, True)
+        await _record_method_outcome(mcp_req, True)
         if mcp_req.method in _CACHEABLE_METHODS:
             await _put_in_cache(mcp_req.method, mcp_req.params, result)
     else:
@@ -702,33 +718,41 @@ async def _process_single_mcp_request(
         # check whether the upstream returned a JSON-RPC error body so that
         # run_outcome reflects actual tool-level outcomes, not just connectivity.
         if not transport_success:
-            mcp_stats.upstream_failures += 1
+            async with mcp_stats._lock:
+                mcp_stats.upstream_failures += 1
             is_success = False
         else:
             is_success = "error" not in resp_dict
-            if is_success:
-                mcp_stats.upstream_successes += 1
-            else:
-                mcp_stats.upstream_failures += 1
+            async with mcp_stats._lock:
+                if is_success:
+                    mcp_stats.upstream_successes += 1
+                else:
+                    mcp_stats.upstream_failures += 1
         # Populate cache for successful list responses.
         if is_success and mcp_req.method in _CACHEABLE_METHODS:
             result_payload = resp_dict.get("result") if resp_dict.get("result") is not None else {}
             await _put_in_cache(mcp_req.method, mcp_req.params, result_payload)
-        _record_method_outcome(mcp_req, is_success)
-        mcp_stats.upstream_time_ms += (time.monotonic() - upstream_start) * 1000
+        await _record_method_outcome(mcp_req, is_success)
+        upstream_elapsed = (time.monotonic() - upstream_start) * 1000
         elapsed = (time.monotonic() - start_time) * 1000
-        mcp_stats.total_processing_time_ms += elapsed
+        async with mcp_stats._lock:
+            mcp_stats.upstream_time_ms += upstream_elapsed
+            mcp_stats.total_processing_time_ms += elapsed
         return resp_dict
 
-    mcp_stats.upstream_time_ms += (time.monotonic() - upstream_start) * 1000
+    upstream_elapsed = (time.monotonic() - upstream_start) * 1000
+    async with mcp_stats._lock:
+        mcp_stats.upstream_time_ms += upstream_elapsed
 
     # Phase 5: Serialize response
     serialize_start = time.monotonic()
     response = MCPResponse(id=mcp_req.id, result=result).to_dict()
-    mcp_stats.serialization_time_ms += (time.monotonic() - serialize_start) * 1000
+    serialization_elapsed = (time.monotonic() - serialize_start) * 1000
 
     elapsed = (time.monotonic() - start_time) * 1000
-    mcp_stats.total_processing_time_ms += elapsed
+    async with mcp_stats._lock:
+        mcp_stats.serialization_time_ms += serialization_elapsed
+        mcp_stats.total_processing_time_ms += elapsed
     return response
 
 
@@ -919,12 +943,18 @@ def start(
         uvicorn.run(app, host="0.0.0.0", port=port, log_level="warning")
     finally:
         # Cleanup resources
+        # Use the running event loop instead of asyncio.run() to avoid:
+        # RuntimeError: asyncio.run() cannot be called from a running event loop
+        loop = asyncio.get_running_loop()
+        cleanup_tasks = []
         if _upstream_http_client is not None:
-            asyncio.run(_upstream_http_client.aclose())
+            cleanup_tasks.append(_upstream_http_client.aclose())
         if _stdio_transport is not None:
-            asyncio.run(_stdio_transport.stop())
+            cleanup_tasks.append(_stdio_transport.stop())
         if _sse_transport is not None:
-            asyncio.run(_sse_transport.stop())
+            cleanup_tasks.append(_sse_transport.stop())
+        if cleanup_tasks:
+            loop.run_until_complete(asyncio.gather(*cleanup_tasks, return_exceptions=True))
         _upstream_http_client = None
         _stdio_transport = None
         _sse_transport = None

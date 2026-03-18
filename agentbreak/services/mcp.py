@@ -73,8 +73,20 @@ class MCPProxy(BaseProxy):
         )
 
     def _is_success(self, response: Response) -> bool:
+        """Check if MCP response indicates success (no error field in JSON-RPC body)."""
         try:
-            data = json.loads(response.body)
+            # FastAPI JSONResponse has .body attribute with JSON string content
+            if isinstance(response, JSONResponse):
+                data = json.loads(response.body)
+            else:
+                # Fallback: try to parse response content
+                body = getattr(response, "body", None) or getattr(response, "content", None)
+                if isinstance(body, bytes):
+                    data = json.loads(body)
+                elif isinstance(body, str):
+                    data = json.loads(body)
+                else:
+                    return False
             return "error" not in data
         except Exception:
             return False
