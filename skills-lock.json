@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "skills": {
+    "agentbreak-create-tests": {
+      "source": "mnvsk97/agentbreak",
+      "sourceType": "github",
+      "computedHash": "358c87bdd7e98a8fbcb035acfbe8f78b3aff0cf94dac1aa157f6c330bb23efad"
+    },
+    "agentbreak-run-tests": {
+      "source": "mnvsk97/agentbreak",
+      "sourceType": "github",
+      "computedHash": "aa33d784e54a7cebfc5ff490092369e240790e3671eee0a8b0fecd6875911595"
+    }
+  }
+}
