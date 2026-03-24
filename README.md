@@ -17,7 +17,7 @@ agentbreak init                    # creates .agentbreak/ with default configs
 agentbreak serve
 ```
 
-Point your agent at `http://localhost:5005/v1` instead of the real API. Check results:
+Point your agent at `http://localhost:5005` instead of the real API. Works with both OpenAI (`/v1/chat/completions`) and Anthropic (`/v1/messages`) formats. Check results:
 
 ```bash
 curl localhost:5005/_agentbreak/scorecard
@@ -83,6 +83,11 @@ agentbreak verify     # run tests
 ```bash
 npx skills add mnvsk97/agentbreak
 ```
+
+## Docs
+
+- [Testing Methodology](docs/TESTING_METHODOLOGY.md) -- how to design chaos tests, read results, and iterate
+- [Failure Modes](docs/FAILURE_MODES.md) -- what AgentBreak simulates and what is out of scope
 
 ## Examples
 

@@ -46,6 +46,49 @@ def test_openai_error_preserves_unknown_status_code() -> None:
     assert payload["error"]["code"] == 418
 
 
+def test_anthropic_error_shape() -> None:
+    payload = main.anthropic_error(429)
+    assert payload["type"] == "error"
+    assert payload["error"]["type"] == "rate_limit_error"
+    assert "AgentBreak" in payload["error"]["message"]
+
+
+def test_anthropic_error_unknown_status_uses_api_error() -> None:
+    payload = main.anthropic_error(418)
+    assert payload["type"] == "error"
+    assert payload["error"]["type"] == "api_error"
+
+
+def test_anthropic_error_message_override() -> None:
+    payload = main.anthropic_error(500, message_override="custom msg")
+    assert payload["error"]["message"] == "custom msg"
+
+
+def test_anthropic_error_overloaded() -> None:
+    payload = main.anthropic_error(503)
+    assert payload["error"]["type"] == "overloaded_error"
+
+
+def test_init_creates_agentbreak_directory(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(main.cli, ["init"])
+    assert result.exit_code == 0
+    assert (tmp_path / ".agentbreak" / "application.yaml").exists()
+    assert (tmp_path / ".agentbreak" / "scenarios.yaml").exists()
+    assert "Created" in result.stdout
+
+
+def test_init_does_not_overwrite_existing(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    agentbreak_dir = tmp_path / ".agentbreak"
+    agentbreak_dir.mkdir()
+    (agentbreak_dir / "application.yaml").write_text("custom: true", encoding="utf-8")
+    result = runner.invoke(main.cli, ["init"])
+    assert result.exit_code == 0
+    assert "Already exists" in result.stdout
+    assert (agentbreak_dir / "application.yaml").read_text(encoding="utf-8") == "custom: true"
+
+
 def test_load_scenarios_parses_llm_and_mcp_targets(tmp_path: Path) -> None:
     scenarios_path = tmp_path / "scenarios.yaml"
     write_scenarios(

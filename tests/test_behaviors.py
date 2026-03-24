@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from agentbreak.behaviors import apply_response_behavior, empty, invalid_json, malformed_tool_calls
+from agentbreak.behaviors import apply_response_behavior, empty, invalid_json, malformed_tool_calls, malformed_tool_use
 
 
 def test_empty_returns_empty_bytes() -> None:
@@ -45,6 +45,40 @@ def test_malformed_tool_calls_injects_field_when_missing() -> None:
 
 def test_malformed_tool_calls_returns_invalid_json_on_parse_failure() -> None:
     assert malformed_tool_calls(b"{oops") == b"{not valid"
+
+
+def test_malformed_tool_use_corrupts_content_blocks() -> None:
+    body = json.dumps(
+        {
+            "id": "msg_1",
+            "type": "message",
+            "role": "assistant",
+            "content": [{"type": "text", "text": "Hello"}],
+        }
+    ).encode("utf-8")
+    payload = json.loads(malformed_tool_use(body).decode("utf-8"))
+    assert payload["content"][0]["type"] == "tool_use"
+    assert payload["content"][0]["id"] == "INVALID"
+    assert payload["content"][0]["input"] == "INVALID"
+
+
+def test_malformed_tool_use_injects_invalid_when_no_content() -> None:
+    body = json.dumps({"id": "msg_1", "type": "message"}).encode("utf-8")
+    payload = json.loads(malformed_tool_use(body).decode("utf-8"))
+    assert payload["content"] == "INVALID"
+
+
+def test_malformed_tool_use_returns_invalid_json_on_parse_failure() -> None:
+    assert malformed_tool_use(b"{oops") == b"{not valid"
+
+
+def test_apply_response_behavior_malformed_tool_use_works() -> None:
+    body = json.dumps(
+        {"content": [{"type": "text", "text": "hi"}]}
+    ).encode("utf-8")
+    result = apply_response_behavior(body, "malformed_tool_use")
+    payload = json.loads(result.decode("utf-8"))
+    assert payload["content"][0]["type"] == "tool_use"
 
 
 def test_apply_response_behavior_unknown_name_returns_original() -> None:
