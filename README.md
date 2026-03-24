@@ -11,7 +11,10 @@ Agent  →  AgentBreak (localhost:5005)  →  Real LLM / MCP server
 ## Quick start
 
 ```bash
-pip install agentbreak
+pip install agentbreak              # core only
+# or, for development / running tests:
+pip install agentbreak[dev]         # includes pytest
+
 cp config.example.yaml application.yaml    # edit: llm.mode, mcp.enabled
 cp scenarios.example.yaml scenarios.yaml   # edit: faults to inject
 agentbreak serve --config application.yaml --scenarios scenarios.yaml

@@ -5,7 +5,7 @@
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -e '.[dev]'
+pip install -e '.[dev]'   # includes pytest; use '.' for core only
 ```
 
 ## Commands

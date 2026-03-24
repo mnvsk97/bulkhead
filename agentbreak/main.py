@@ -942,6 +942,15 @@ def validate(
 def verify(
     live: bool = typer.Option(False, "--live", help="Also run the live LangGraph + MCP + AgentBreak harness."),
 ) -> None:
+    try:
+        import pytest as _pytest  # noqa: F401
+    except ImportError:
+        typer.echo(
+            "pytest is not installed. Install dev dependencies first:\n\n"
+            "  pip install -e '.[dev]'\n",
+            err=True,
+        )
+        raise typer.Exit(code=1)
     repo_root = Path(__file__).resolve().parent.parent
     commands = [
         [sys.executable, "-m", "pytest", "-q"],
