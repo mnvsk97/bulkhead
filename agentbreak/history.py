@@ -13,25 +13,34 @@ class RunHistory:
     def __init__(self, db_path: str):
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._init_db()
+
+    def _init_db(self) -> None:
         with self._connect() as conn:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS runs (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     timestamp REAL NOT NULL,
+                    label TEXT,
                     llm_scorecard TEXT,
                     mcp_scorecard TEXT,
                     scenarios TEXT
                 )
             """)
+            # Migrate: add label column if missing (for existing DBs)
+            try:
+                conn.execute("ALTER TABLE runs ADD COLUMN label TEXT")
+            except Exception:
+                pass
 
     def _connect(self) -> sqlite3.Connection:
         return sqlite3.connect(str(self.db_path))
 
-    def save_run(self, llm_scorecard: dict | None, mcp_scorecard: dict | None, scenarios: list[dict] | None = None) -> int:
+    def save_run(self, llm_scorecard: dict | None, mcp_scorecard: dict | None, scenarios: list[dict] | None = None, label: str | None = None) -> int:
         with self._connect() as conn:
             cursor = conn.execute(
-                "INSERT INTO runs (timestamp, llm_scorecard, mcp_scorecard, scenarios) VALUES (?, ?, ?, ?)",
-                (time.time(), json.dumps(llm_scorecard), json.dumps(mcp_scorecard), json.dumps(scenarios)),
+                "INSERT INTO runs (timestamp, label, llm_scorecard, mcp_scorecard, scenarios) VALUES (?, ?, ?, ?, ?)",
+                (time.time(), label, json.dumps(llm_scorecard), json.dumps(mcp_scorecard), json.dumps(scenarios)),
             )
             return cursor.lastrowid  # type: ignore[return-value]
 

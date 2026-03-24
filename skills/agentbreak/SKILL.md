@@ -127,7 +127,13 @@ Present the generated scenarios:
    ```
    Fix any errors before proceeding.
 
-3. Start the proxy:
+3. Check if history is enabled in `.agentbreak/application.yaml`. If not, ask the user if they want to enable it for run comparison. If yes, add `history: {enabled: true}` to the config.
+
+4. Start the proxy. If the user provided context about what changed, pass it as a label:
+   ```bash
+   agentbreak serve -v --label "description of what changed" &
+   ```
+   If no label context was given:
    ```bash
    agentbreak serve -v &
    ```
@@ -179,6 +185,23 @@ Tell the user exactly how to connect their agent. Show ONLY the relevant provide
    ```bash
    kill %1
    ```
+
+3. Check for previous runs:
+   ```bash
+   agentbreak history
+   ```
+   If there are previous runs, compare with the most recent one:
+   ```bash
+   agentbreak history compare {previous_id} {current_id}
+   ```
+
+   Present the comparison:
+   > "Compared to your previous run:
+   >
+   > **LLM Score:** [old] → [new] ([+/-delta])
+   > **MCP Score:** [old] → [new] ([+/-delta])
+   >
+   > [interpretation: what improved, what got worse, and why based on the scenarios]"
 
 **Present results:**
 
@@ -253,6 +276,7 @@ preset: mcp-mixed-transient   # latency + 503 on MCP
 - **Use subagents for codebase scanning** in Step 2. Serial grep is too slow on large codebases.
 - **Only show the relevant provider's env vars** in Step 4. If the user uses OpenAI, don't mention Anthropic.
 - **In mock mode, no API keys are needed.** Don't ask the user for keys unless they want proxy mode.
+- **If history is enabled, always compare with the previous run in Step 5.** This helps users track whether their changes improved resilience.
 
 ## Common issues
 
@@ -260,3 +284,4 @@ preset: mcp-mixed-transient   # latency + 503 on MCP
 - **MCP inspect fails**: Upstream MCP server must be running first.
 - **No faults firing**: Probability too low. Use 0.3+ for visible results.
 - **Registry not found**: Run `agentbreak inspect` before `serve` when MCP enabled.
+- **No history found**: Enable `history.enabled: true` in `.agentbreak/application.yaml` and re-run.

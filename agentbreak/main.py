@@ -10,6 +10,7 @@ import subprocess
 import sys
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -29,7 +30,18 @@ from agentbreak.history import RunHistory
 from agentbreak.scenarios import Scenario, ScenarioFile, load_scenarios, validate_supported_targets
 
 
-cli = typer.Typer(add_completion=False, help="Chaos testing for OpenAI and Anthropic LLM APIs, and MCP tool runtimes.")
+cli = typer.Typer(
+    add_completion=False,
+    help=(
+        "AgentBreak — chaos proxy for LLM and MCP agent testing.\n\n"
+        "Quick start:\n\n"
+        "  agentbreak init       Create .agentbreak/ config\n"
+        "  agentbreak serve      Start the chaos proxy\n"
+        "  agentbreak history    View past run results\n\n"
+        "Point your agent at http://localhost:5005 and check results:\n\n"
+        "  curl localhost:5005/_agentbreak/scorecard"
+    ),
+)
 app = FastAPI(title="agentbreak")
 
 DEFAULT_APPLICATION_YAML = """\
@@ -88,6 +100,7 @@ class ServiceState:
     llm_runtime: LLMRuntime | None
     mcp_runtime: MCPRuntime | None
     history: RunHistory | None = None
+    run_label: str | None = None
 
 
 service_state: ServiceState | None = None
@@ -1004,7 +1017,7 @@ def _save_run_to_history() -> None:
         llm_scorecard = state.llm_runtime.scorecard_data() if state.llm_runtime else None
         mcp_scorecard = state.mcp_runtime.scorecard_data() if state.mcp_runtime else None
         scenarios = [s.model_dump() for s in state.scenarios.scenarios] if state.scenarios.scenarios else None
-        state.history.save_run(llm_scorecard=llm_scorecard, mcp_scorecard=mcp_scorecard, scenarios=scenarios)
+        state.history.save_run(llm_scorecard=llm_scorecard, mcp_scorecard=mcp_scorecard, scenarios=scenarios, label=state.run_label)
         logger.info("saved run to history")
     except Exception:
         logger.debug("failed to save run to history", exc_info=True)
@@ -1147,6 +1160,7 @@ def serve(
     scenarios_path: str | None = typer.Option(None, "--scenarios", help="Scenarios path. Defaults to .agentbreak/scenarios.yaml."),
     registry_path: str | None = typer.Option(None, "--registry", help="Registry path. Defaults to ./.agentbreak/registry.json."),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose logging."),
+    label: str | None = typer.Option(None, "--label", "-l", help="Label for this run in history."),
 ) -> None:
     global service_state
 
@@ -1158,6 +1172,7 @@ def serve(
     )
 
     service_state = load_service_state(config_path, scenarios_path, registry_path)
+    service_state.run_label = label
     host = service_state.application.serve.host
     port = service_state.application.serve.port
 
@@ -1209,6 +1224,91 @@ def verify() -> None:
     command = [sys.executable, "-m", "pytest", "-q"]
     typer.echo("$ " + " ".join(command))
     subprocess.run(command, cwd=repo_root, check=True)
+
+
+history_cli = typer.Typer(help="View past run history.")
+cli.add_typer(history_cli, name="history")
+
+
+@history_cli.callback(invoke_without_command=True)
+def history_list(ctx: typer.Context, limit: int = typer.Option(10, "--limit", "-n", help="Number of runs to show.")):
+    """List recent runs."""
+    if ctx.invoked_subcommand is not None:
+        return
+    db_path = ".agentbreak/history.db"
+    if not Path(db_path).exists():
+        typer.echo("No history found. Run `agentbreak serve` with `history.enabled: true` first.")
+        raise typer.Exit(1)
+    h = RunHistory(db_path=db_path)
+    runs = h.get_runs(limit=limit)
+    if not runs:
+        typer.echo("No runs recorded yet.")
+        return
+    # Print table header
+    typer.echo(f"{'ID':>4}  {'Timestamp':<20}  {'Label':<20}  {'LLM':>5}  {'MCP':>5}  {'Outcome':<10}")
+    typer.echo("-" * 75)
+    for run in runs:
+        ts = datetime.fromtimestamp(run["timestamp"]).strftime("%Y-%m-%d %H:%M:%S")
+        run_label = run.get("label") or run.get("run_label") or "-"
+        llm = run.get("llm_scorecard") or {}
+        mcp = run.get("mcp_scorecard") or {}
+        llm_score = str(llm.get("resilience_score", "-")) if llm else "-"
+        mcp_score = str(mcp.get("resilience_score", "-")) if mcp else "-"
+        outcome = llm.get("run_outcome") or mcp.get("run_outcome") or "-"
+        typer.echo(f"{run['id']:>4}  {ts:<20}  {run_label:<20}  {llm_score:>5}  {mcp_score:>5}  {outcome:<10}")
+
+
+@history_cli.command()
+def show(run_id: int = typer.Argument(..., help="Run ID to show.")):
+    """Show details of a specific run."""
+    db_path = ".agentbreak/history.db"
+    if not Path(db_path).exists():
+        typer.echo("No history found.")
+        raise typer.Exit(1)
+    h = RunHistory(db_path=db_path)
+    run = h.get_run(run_id)
+    if run is None:
+        typer.echo(f"Run {run_id} not found.")
+        raise typer.Exit(1)
+    typer.echo(json.dumps(run, indent=2, default=str))
+
+
+@history_cli.command()
+def compare(
+    run_a: int = typer.Argument(..., help="First run ID."),
+    run_b: int = typer.Argument(..., help="Second run ID."),
+):
+    """Compare two runs side-by-side."""
+    db_path = ".agentbreak/history.db"
+    if not Path(db_path).exists():
+        typer.echo("No history found.")
+        raise typer.Exit(1)
+    h = RunHistory(db_path=db_path)
+    a, b = h.get_run(run_a), h.get_run(run_b)
+    if a is None or b is None:
+        typer.echo(f"Run {run_a if a is None else run_b} not found.")
+        raise typer.Exit(1)
+
+    typer.echo(f"Comparing run {run_a} vs {run_b}\n")
+
+    for section, key in [("LLM", "llm_scorecard"), ("MCP", "mcp_scorecard")]:
+        sa, sb = a.get(key) or {}, b.get(key) or {}
+        if not sa and not sb:
+            continue
+        typer.echo(f"{section} Scorecard:")
+        metrics = ["resilience_score", "run_outcome", "requests_seen", "injected_faults",
+                   "upstream_successes", "upstream_failures", "duplicate_requests", "suspected_loops"]
+        typer.echo(f"  {'Metric':<25} {'Run ' + str(run_a):>12} {'Run ' + str(run_b):>12} {'Delta':>10}")
+        typer.echo(f"  {'-'*60}")
+        for m in metrics:
+            va, vb = sa.get(m, "-"), sb.get(m, "-")
+            if isinstance(va, (int, float)) and isinstance(vb, (int, float)):
+                delta = vb - va
+                sign = "+" if delta > 0 else ""
+                typer.echo(f"  {m:<25} {str(va):>12} {str(vb):>12} {sign + str(delta):>10}")
+            else:
+                typer.echo(f"  {m:<25} {str(va):>12} {str(vb):>12}")
+        typer.echo()
 
 
 if __name__ == "__main__":
