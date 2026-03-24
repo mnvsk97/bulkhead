@@ -16,6 +16,8 @@ application.yaml
 .agents/
 skills-lock.json
 
+.cortex/
+
 # IDE skill symlinks (created by npx skills add)
 .adal/
 .augment/
