@@ -21,13 +21,13 @@ import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response
 
+from agentbreak import __version__
 from agentbreak.behaviors import apply_response_behavior
 from agentbreak.config import ApplicationConfig, MCPRegistry, load_application_config, load_registry, save_registry
 from agentbreak.discovery.mcp import MCP_PROTOCOL_VERSION, inspect_mcp_server, parse_mcp_response
 from agentbreak.scenarios import Scenario, ScenarioFile, load_scenarios, validate_supported_targets
 
 
-PORT = 5000
 cli = typer.Typer(add_completion=False, help="Chaos testing for OpenAI-compatible LLM and MCP tool runtimes.")
 app = FastAPI(title="agentbreak")
 
@@ -244,7 +244,7 @@ class MCPRuntime:
                             "resources": {"listChanged": False} if self.registry.resources else {},
                             "prompts": {"listChanged": False} if self.registry.prompts else {},
                         },
-                        "serverInfo": {"name": "agentbreak-mcp", "version": "0.1.1"},
+                        "serverInfo": {"name": "agentbreak-mcp", "version": __version__},
                     },
                 }
             )
@@ -281,7 +281,7 @@ class MCPRuntime:
                         "params": {
                             "protocolVersion": MCP_PROTOCOL_VERSION,
                             "capabilities": {"tools": {}},
-                            "clientInfo": {"name": "agentbreak", "version": "0.1.1"},
+                            "clientInfo": {"name": "agentbreak", "version": __version__},
                         },
                     },
                     headers={
@@ -417,7 +417,7 @@ class MCPRuntime:
                 "params": {
                     "protocolVersion": MCP_PROTOCOL_VERSION,
                     "capabilities": {"tools": {}, "resources": {}, "prompts": {}},
-                    "clientInfo": {"name": "agentbreak", "version": "0.1.1"},
+                    "clientInfo": {"name": "agentbreak", "version": __version__},
                 },
             },
             headers=self._upstream_headers(include_session=False),
@@ -505,11 +505,6 @@ class MCPRuntime:
             if seen > 2:
                 self.stats.suspected_loops += 1
         self.stats.recent_requests.append(entry)
-
-
-@cli.callback()
-def cli_root() -> None:
-    pass
 
 
 def load_service_state(
@@ -909,7 +904,7 @@ def serve(
 
     service_state = load_service_state(config_path, scenarios_path, registry_path)
     host = service_state.application.serve.host
-    port = service_state.application.serve.port or PORT
+    port = service_state.application.serve.port
 
     logger.info("starting on %s:%d", host, port)
     logger.info(

@@ -106,7 +106,7 @@ def test_validate_rejects_unimplemented_targets(tmp_path: Path) -> None:
 
     result = runner.invoke(main.cli, ["validate", "--config", str(application_path), "--scenarios", str(scenarios_path)])
     assert result.exit_code != 0
-    assert "Recognized but unimplemented scenario targets" in result.output
+    assert "Recognized but unimplemented scenario targets" in str(result.exception)
 
 
 def test_validate_rejects_llm_timeout_fault(tmp_path: Path) -> None:
@@ -129,7 +129,7 @@ def test_validate_rejects_llm_timeout_fault(tmp_path: Path) -> None:
 
     result = runner.invoke(main.cli, ["validate", "--config", str(application_path), "--scenarios", str(scenarios_path)])
     assert result.exit_code != 0
-    assert "llm_chat timeout faults are not implemented" in result.output
+    assert "llm_chat timeout faults are not implemented" in str(result.exception)
 
 
 def test_mcp_only_mock_config_is_valid() -> None:
@@ -268,9 +268,10 @@ def test_inspect_collects_paginated_tools_resources_and_prompts(monkeypatch) -> 
 
 def test_validate_rejects_missing_registry_when_mcp_enabled(tmp_path: Path) -> None:
     application_path = tmp_path / "application.yaml"
+    registry_path = tmp_path / "nonexistent" / "registry.json"
     write_application(application_path, mcp={"enabled": True, "upstream_url": "https://mcp.example.com"})
 
-    result = runner.invoke(main.cli, ["validate", "--config", str(application_path)])
+    result = runner.invoke(main.cli, ["validate", "--config", str(application_path), "--registry", str(registry_path)])
     assert result.exit_code != 0
     assert "MCP registry not found" in str(result.exception)
 

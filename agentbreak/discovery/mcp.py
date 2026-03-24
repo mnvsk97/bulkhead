@@ -4,6 +4,7 @@ from typing import Any
 
 import httpx
 
+from agentbreak import __version__
 from agentbreak.config import MCPConfig, MCPPrompt, MCPRegistry, MCPResource, MCPTool
 
 MCP_PROTOCOL_VERSION = "2024-11-05"
@@ -41,7 +42,7 @@ async def inspect_mcp_server(config: MCPConfig) -> MCPRegistry:
                 {
                     "protocolVersion": MCP_PROTOCOL_VERSION,
                     "capabilities": {"tools": {}},
-                    "clientInfo": {"name": "agentbreak", "version": "0.1.1"},
+                    "clientInfo": {"name": "agentbreak", "version": __version__},
                 },
                 1,
             ),

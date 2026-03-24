@@ -6,7 +6,6 @@ from typing import Any, Literal
 
 import yaml
 from pydantic import BaseModel, Field, model_validator
-import typer
 
 
 IMPLEMENTED_TARGETS = {"llm_chat", "mcp_tool"}
@@ -199,7 +198,7 @@ def load_scenarios(path: str | None) -> ScenarioFile:
 def validate_supported_targets(scenarios: ScenarioFile) -> None:
     unsupported = sorted({scenario.target for scenario in scenarios.scenarios if scenario.target not in IMPLEMENTED_TARGETS})
     if unsupported:
-        raise typer.BadParameter(
+        raise ValueError(
             "Recognized but unimplemented scenario targets: "
             + ", ".join(unsupported)
             + ". See docs/TODO_SCENARIOS.md."
@@ -210,4 +209,4 @@ def validate_supported_targets(scenarios: ScenarioFile) -> None:
         if scenario.target == "llm_chat" and scenario.fault.kind == "timeout"
     )
     if invalid:
-        raise typer.BadParameter("llm_chat timeout faults are not implemented: " + ", ".join(invalid))
+        raise ValueError("llm_chat timeout faults are not implemented: " + ", ".join(invalid))
