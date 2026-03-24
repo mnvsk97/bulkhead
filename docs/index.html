@@ -58,27 +58,27 @@
     <main>
       <section>
         <h1>AgentBreak</h1>
-        <p>AgentBreak is a minimal chaos proxy for OpenAI-compatible chat completions and MCP agent runtimes.</p>
-        <p>Use <code>agentbreak inspect</code> to discover MCP tools, resources, and prompts, then <code>agentbreak serve</code> to expose the mirrored MCP endpoint and chat endpoint.</p>
+        <p>Chaos proxy for testing how your agents handle failures. Supports OpenAI, Anthropic, and MCP.</p>
       </section>
 
       <section>
         <h2>Quick Start</h2>
-        <pre><code>cp config.example.yaml application.yaml
-cp scenarios.example.yaml scenarios.yaml
-agentbreak serve --config application.yaml --scenarios scenarios.yaml</code></pre>
+        <pre><code>pip install agentbreak
+agentbreak init
+agentbreak serve</code></pre>
         <p>Endpoints:</p>
         <ul>
-          <li><code>POST /v1/chat/completions</code></li>
+          <li><code>POST /v1/chat/completions</code> (OpenAI)</li>
+          <li><code>POST /v1/messages</code> (Anthropic)</li>
           <li><code>POST /mcp</code></li>
         </ul>
       </section>
 
       <section>
         <h2>MCP Inspect</h2>
-        <pre><code>agentbreak inspect --config application.yaml
-agentbreak serve --config application.yaml --scenarios scenarios.yaml</code></pre>
-        <p>This writes <code>.agentbreak/registry.json</code> and uses it to mirror discovered tools, resources, and prompts.</p>
+        <pre><code>agentbreak inspect
+agentbreak serve</code></pre>
+        <p>Discovers upstream MCP tools and writes <code>.agentbreak/registry.json</code>.</p>
       </section>
 
       <section>
@@ -88,13 +88,11 @@ agentbreak serve --config application.yaml --scenarios scenarios.yaml</code></pr
           <li>MCP methods: <code>tools/list</code>, <code>tools/call</code>, <code>resources/list</code>, <code>resources/read</code>, <code>prompts/list</code>, <code>prompts/get</code></li>
           <li>Faults: <code>http_error</code>, <code>latency</code>, <code>timeout</code>, <code>empty_response</code>, <code>invalid_json</code>, <code>schema_violation</code>, <code>wrong_content</code>, <code>large_response</code></li>
         </ul>
-        <p>Deferred targets are documented in <a href="./TODO_SCENARIOS.md">TODO_SCENARIOS.md</a>.</p>
       </section>
 
       <section>
         <h2>Verification</h2>
         <pre><code>agentbreak verify</code></pre>
-        <p>Runs the local pytest verification suite.</p>
       </section>
     </main>
   </body>
