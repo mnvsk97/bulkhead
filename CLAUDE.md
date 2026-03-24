@@ -17,14 +17,13 @@ agentbreak serve
 
 For MCP mirroring: `agentbreak inspect` then `serve`.
 
-## Skills
+## Skill
 
-Bundled workflows under **`skills/`** (install via `npx skills add mnvsk97/agentbreak`):
+Bundled workflow under **`skills/`** (install via `npx skills add mnvsk97/agentbreak`):
 
 | Skill | Path |
 |-------|------|
-| Run chaos tests | `skills/agentbreak-run-tests/SKILL.md` |
-| Generate chaos scenarios | `skills/agentbreak-create-tests/SKILL.md` |
+| Chaos test your agent | `skills/agentbreak/SKILL.md` |
 
 ## Docs map
 
