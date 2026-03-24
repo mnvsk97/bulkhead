@@ -13,3 +13,4 @@ config.yaml
 application.yaml
 *.pckl
 .langgraph_api/
+.agents/
