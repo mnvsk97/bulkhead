@@ -31,9 +31,16 @@ If `.agentbreak/` does not exist, tell the user:
 
 Do not proceed without `.agentbreak/application.yaml` and `.agentbreak/scenarios.yaml`.
 
-### 3. Read the config
+### 3. Read the config and detect the provider
 
-Read `.agentbreak/application.yaml` to understand what is enabled (LLM mode, MCP, port, upstream URLs). You need this to give the user correct instructions in step 6.
+Read `.agentbreak/application.yaml` to understand what is enabled (LLM mode, MCP, port, upstream URLs).
+
+Also determine which LLM provider the user's agent uses. Check:
+- `.agentbreak/application.yaml` `upstream_url` — does it point to `openai.com` or `anthropic.com`?
+- Scan the codebase for `from openai` vs `from anthropic` imports
+- If still unclear, **ask the user**: "Does your agent use OpenAI (`/v1/chat/completions`) or Anthropic (`/v1/messages`)?"
+
+You need this to give the correct endpoint and env vars in step 7.
 
 ### 4. If MCP is enabled, run inspect
 
@@ -61,15 +68,21 @@ Run it in the background. Wait for the startup log line confirming the port.
 
 ### 7. Tell the user how to connect
 
-Based on what you read from `.agentbreak/application.yaml`, tell the user the exact env vars or code changes needed:
+Based on the detected provider and config, tell the user the **exact** env vars needed. Only show the relevant provider — do not show both.
 
-**For LLM proxy** (read the port from config, default 5005):
+**If OpenAI** (read the port from config, default 5005):
 ```bash
 export OPENAI_BASE_URL=http://127.0.0.1:{port}/v1
 export OPENAI_API_KEY=dummy   # any value works in mock mode
 ```
 
-**For MCP proxy**:
+**If Anthropic**:
+```bash
+export ANTHROPIC_BASE_URL=http://127.0.0.1:{port}
+export ANTHROPIC_API_KEY=dummy   # any value works in mock mode
+```
+
+**If MCP is also enabled**:
 ```
 Point your MCP client at http://127.0.0.1:{port}/mcp
 ```

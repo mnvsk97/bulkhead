@@ -59,6 +59,37 @@ def test_basic_missing_password_returns_empty():
     assert a.headers() == {}
 
 
+def test_api_key_requires_header_name():
+    with pytest.raises(Exception):
+        AuthConfig(type="api_key", env="MY_KEY")
+
+
+def test_api_key_requires_env_or_token():
+    with pytest.raises(Exception):
+        AuthConfig(type="api_key", header_name="x-api-key")
+
+
+def test_api_key_with_token():
+    a = AuthConfig(type="api_key", header_name="x-api-key", token="sk-ant-123")
+    assert a.headers() == {"x-api-key": "sk-ant-123"}
+
+
+def test_api_key_with_env(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-env")
+    a = AuthConfig(type="api_key", header_name="x-api-key", env="ANTHROPIC_API_KEY")
+    assert a.headers() == {"x-api-key": "sk-ant-env"}
+
+
+def test_api_key_missing_env_returns_empty():
+    a = AuthConfig(type="api_key", header_name="x-api-key", env="NONEXISTENT_VAR_XYZ")
+    assert a.headers() == {}
+
+
+def test_api_key_custom_header_name():
+    a = AuthConfig(type="api_key", header_name="authorization", token="my-token")
+    assert a.headers() == {"authorization": "my-token"}
+
+
 def test_oauth2_requires_all_fields():
     with pytest.raises(Exception):
         AuthConfig(type="oauth2_client_credentials", token_url="http://x")

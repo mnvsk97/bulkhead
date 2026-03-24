@@ -19,7 +19,7 @@ import httpx
 import typer
 import uvicorn
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from agentbreak import __version__
 from agentbreak.behaviors import apply_response_behavior
@@ -36,10 +36,17 @@ DEFAULT_APPLICATION_YAML = """\
 llm:
   enabled: true
   mode: mock
+  # OpenAI:
   # upstream_url: https://api.openai.com
   # auth:
   #   type: bearer
   #   env: OPENAI_API_KEY
+  # Anthropic:
+  # upstream_url: https://api.anthropic.com
+  # auth:
+  #   type: api_key
+  #   header_name: x-api-key
+  #   env: ANTHROPIC_API_KEY
 
 mcp:
   enabled: false
@@ -140,6 +147,9 @@ class LLMRuntime:
         error_fn = anthropic_error if api_format == "anthropic" else openai_error
         if has_parse_error:
             return JSONResponse(status_code=400, content=error_fn(400, message_override="Malformed JSON request body."))
+
+        is_streaming = payload.get("stream") is True
+
         scenario = choose_matching_scenario(
             self.scenarios,
             "llm_chat",
@@ -159,6 +169,10 @@ class LLMRuntime:
                 return JSONResponse(status_code=scenario.fault.status_code or 500, content=error_fn(scenario.fault.status_code or 500))
 
         upstream_path = "/v1/messages" if api_format == "anthropic" else "/v1/chat/completions"
+
+        if is_streaming:
+            return await self._handle_streaming(body, request, api_format, upstream_path, scenario)
+
         if self.mode == "mock":
             mock_fn = mock_anthropic_completion if api_format == "anthropic" else mock_completion
             response_body = json.dumps(mock_fn()).encode("utf-8")
@@ -203,6 +217,68 @@ class LLMRuntime:
                 media_type=upstream.headers.get("content-type"),
             )
         return Response(content=response_body, status_code=200, media_type="application/json")
+
+    async def _handle_streaming(
+        self,
+        body: bytes,
+        request: Request,
+        api_format: str,
+        upstream_path: str,
+        scenario: Scenario | None,
+    ) -> Response:
+        error_fn = anthropic_error if api_format == "anthropic" else openai_error
+
+        if scenario is not None and scenario.fault.kind in {"empty_response", "invalid_json", "large_response", "wrong_content", "schema_violation"}:
+            logger.debug("skipping response mutation %s for streaming request", scenario.fault.kind)
+
+        if self.mode == "mock":
+            mock_fn = mock_openai_stream if api_format == "openai" else mock_anthropic_stream
+            self.stats.upstream_successes += 1
+            return StreamingResponse(mock_fn(), status_code=200, media_type="text/event-stream")
+
+        url = f"{self.upstream_url.rstrip('/')}{upstream_path}"
+        req_headers = filter_request_headers(request.headers, self.auth_headers)
+        client = httpx.AsyncClient(timeout=120.0)
+        try:
+            req = client.build_request("POST", url, content=body, headers=req_headers)
+            upstream = await client.send(req, stream=True)
+        except httpx.HTTPError as exc:
+            await client.aclose()
+            self.stats.upstream_failures += 1
+            logger.warning("upstream unreachable: %s", exc)
+            return JSONResponse(
+                status_code=502,
+                content=error_fn(502, message_override=f"AgentBreak could not reach upstream: {exc}"),
+            )
+
+        if upstream.status_code >= 400:
+            error_body = await upstream.aread()
+            await upstream.aclose()
+            await client.aclose()
+            self.stats.upstream_failures += 1
+            return Response(
+                content=error_body,
+                status_code=upstream.status_code,
+                headers=filter_response_headers(upstream.headers),
+                media_type=upstream.headers.get("content-type"),
+            )
+
+        self.stats.upstream_successes += 1
+
+        async def generate():
+            try:
+                async for chunk in upstream.aiter_bytes():
+                    yield chunk
+            finally:
+                await upstream.aclose()
+                await client.aclose()
+
+        return StreamingResponse(
+            generate(),
+            status_code=200,
+            headers=filter_response_headers(upstream.headers),
+            media_type=upstream.headers.get("content-type", "text/event-stream"),
+        )
 
     def scorecard_data(self) -> dict[str, Any]:
         score = 100
@@ -660,6 +736,27 @@ def mock_completion() -> dict[str, Any]:
         ],
         "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
     }
+
+
+async def mock_openai_stream():
+    chunk = {
+        "id": "chatcmpl-agentbreak-mock",
+        "object": "chat.completion.chunk",
+        "created": 0,
+        "model": "agentbreak-mock",
+        "choices": [{"index": 0, "delta": {"role": "assistant", "content": "AgentBreak mock response."}, "finish_reason": "stop"}],
+    }
+    yield f"data: {json.dumps(chunk)}\n\n"
+    yield "data: [DONE]\n\n"
+
+
+async def mock_anthropic_stream():
+    yield f"event: message_start\ndata: {json.dumps({'type': 'message_start', 'message': {'id': 'msg-agentbreak-mock', 'type': 'message', 'role': 'assistant', 'content': [], 'model': 'agentbreak-mock', 'stop_reason': None, 'usage': {'input_tokens': 0, 'output_tokens': 0}}})}\n\n"
+    yield f"event: content_block_start\ndata: {json.dumps({'type': 'content_block_start', 'index': 0, 'content_block': {'type': 'text', 'text': ''}})}\n\n"
+    yield f"event: content_block_delta\ndata: {json.dumps({'type': 'content_block_delta', 'index': 0, 'delta': {'type': 'text_delta', 'text': 'AgentBreak mock response.'}})}\n\n"
+    yield f"event: content_block_stop\ndata: {json.dumps({'type': 'content_block_stop', 'index': 0})}\n\n"
+    yield f"event: message_delta\ndata: {json.dumps({'type': 'message_delta', 'delta': {'stop_reason': 'end_turn'}, 'usage': {'output_tokens': 0}})}\n\n"
+    yield f"event: message_stop\ndata: {json.dumps({'type': 'message_stop'})}\n\n"
 
 
 def mutate_llm_body(body: bytes, scenario: Scenario) -> bytes:

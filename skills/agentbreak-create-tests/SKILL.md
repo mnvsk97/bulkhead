@@ -30,10 +30,12 @@ Search for these patterns across the project:
 - `llama_index`
 - `smolagents`
 
-**LLM provider and model** -- look for:
-- `base_url=`, `api_base=`, `OPENAI_BASE_URL`, `OPENAI_API_BASE`
-- `model="gpt-4o"`, `model="claude-3"`, `model_name=`, `model_id=`
-- `api.openai.com`, `api.anthropic.com`, `api.together.xyz`, etc.
+**LLM provider** -- determine if the agent uses OpenAI or Anthropic (or both):
+- OpenAI: `from openai`, `ChatOpenAI`, `api.openai.com`, `OPENAI_API_KEY`, `model="gpt-*"`
+- Anthropic: `from anthropic`, `ChatAnthropic`, `api.anthropic.com`, `ANTHROPIC_API_KEY`, `model="claude-*"`
+- If both are found, ask the user which one to test.
+- If neither is clear, **ask the user**: "Which LLM provider does your agent use — OpenAI or Anthropic?"
+- This determines the endpoint: OpenAI uses `/v1/chat/completions`, Anthropic uses `/v1/messages`.
 
 **MCP tool usage** -- look for:
 - `mcp`, `MCPClient`, `MCPServerSse`, `MCPServerStreamableHttp`
@@ -51,7 +53,7 @@ Search for these patterns across the project:
 - `max_retries`, `timeout=` parameters
 - Fallback logic, circuit breaker patterns
 
-Record what you find. This drives the config generation.
+Record what you find — especially the LLM provider. This drives the config generation. You MUST determine a single provider (OpenAI or Anthropic) before proceeding. If ambiguous, ask.
 
 ### 3. Initialize .agentbreak/
 

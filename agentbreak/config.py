@@ -12,10 +12,12 @@ from pydantic import BaseModel, Field, model_validator
 
 
 class AuthConfig(BaseModel):
-    type: Literal["none", "bearer", "basic", "oauth2_client_credentials"] = "none"
-    # bearer
+    type: Literal["none", "bearer", "basic", "oauth2_client_credentials", "api_key"] = "none"
+    # bearer / api_key
     env: str | None = None
     token: str | None = None
+    # api_key
+    header_name: str | None = None
     # basic
     username: str | None = None
     password_env: str | None = None
@@ -34,6 +36,11 @@ class AuthConfig(BaseModel):
     def _check_required_fields(self) -> "AuthConfig":
         if self.type == "bearer" and not self.env and not self.token:
             raise ValueError("bearer auth requires 'env' or 'token'")
+        if self.type == "api_key":
+            if not self.header_name:
+                raise ValueError("api_key auth requires 'header_name'")
+            if not self.env and not self.token:
+                raise ValueError("api_key auth requires 'env' or 'token'")
         if self.type == "basic":
             if not self.username or not self.password_env:
                 raise ValueError("basic auth requires 'username' and 'password_env'")
@@ -48,6 +55,9 @@ class AuthConfig(BaseModel):
         if self.type == "bearer":
             token = self.token or (os.getenv(self.env) if self.env else None)
             return {"authorization": f"Bearer {token}"} if token else {}
+        if self.type == "api_key":
+            token = self.token or (os.getenv(self.env) if self.env else None)
+            return {self.header_name: token} if token and self.header_name else {}
         if self.type == "basic":
             password = os.getenv(self.password_env) if self.password_env else None
             if not password:
