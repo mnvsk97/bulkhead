@@ -1,141 +1,56 @@
 ---
 name: agentbreak-run-tests
-description: Run chaos tests against an OpenAI-compatible app or MCP server using AgentBreak. Uses application.yaml + scenarios.yaml, agentbreak serve, optional MCP inspect, and scorecard endpoints.
+description: Run chaos tests against an OpenAI-compatible app or MCP server using AgentBreak.
 ---
 
-# AgentBreak Testing
-
-Use this skill to run chaos tests against an OpenAI-compatible app and/or MCP traffic with AgentBreak.
-
-## How it works
-
-- **Mock LLM** (`llm.mode: mock`): AgentBreak returns synthetic completions unless a scenario injects a fault. No API key needed.
-- **Proxy LLM** (`llm.mode: proxy`): AgentBreak forwards `/v1/chat/completions` to `llm.upstream_url` when no fault fires.
-- **MCP** (`mcp.enabled: true`): Run `agentbreak inspect` once to write `.agentbreak/registry.json`, then `serve` mirrors MCP through AgentBreak with scenario-driven faults.
+# AgentBreak -- Run Tests
 
 ## Workflow
 
-1. Create config files:
+1. Set up configs:
 
    ```bash
-   cp config.example.yaml application.yaml
-   cp scenarios.example.yaml scenarios.yaml
-   ```
-
-2. Edit `application.yaml`:
-   - Mock: `llm.mode: mock`
-   - Proxy: `llm.mode: proxy`, set `llm.upstream_url` and `llm.auth`
-   - MCP off: `mcp.enabled: false`
-   - MCP on: `mcp.enabled: true`, set `mcp.upstream_url` and `mcp.auth`
-
-3. Edit `scenarios.yaml` (or use a preset):
-
-   ```yaml
-   version: 1
-   scenarios:
-     - name: flaky-llm
-       summary: Random 429s on chat completions
-       target: llm_chat
-       match: {}
-       fault:
-         kind: http_error
-         status_code: 429
-       schedule:
-         mode: random
-         probability: 0.3
-   ```
-
-   Or just use a preset:
-
-   ```yaml
-   version: 1
-   preset: brownout
-   ```
-
-4. Install:
-
-   ```bash
+   cp config.example.yaml application.yaml   # edit: llm.mode, mcp.enabled
+   cp scenarios.example.yaml scenarios.yaml   # edit: faults to inject
    pip install -e '.[dev]'
    ```
 
-5. If MCP is enabled, generate the registry:
+2. If MCP is enabled, discover tools:
 
    ```bash
    agentbreak inspect --config application.yaml
    ```
 
-6. Validate before serving:
+3. Validate and serve:
 
    ```bash
    agentbreak validate --config application.yaml --scenarios scenarios.yaml
+   agentbreak serve --config application.yaml --scenarios scenarios.yaml -v
    ```
 
-7. Serve:
+4. Point agent at AgentBreak:
 
    ```bash
-   agentbreak serve --config application.yaml --scenarios scenarios.yaml
-   # Add -v / --verbose for debug logging
+   export OPENAI_BASE_URL=http://127.0.0.1:5005/v1
    ```
 
-8. Point the target app at AgentBreak:
+5. Check results:
 
    ```bash
-   export OPENAI_BASE_URL=http://127.0.0.1:5000/v1
-   export OPENAI_API_KEY=dummy   # use a real key in proxy mode
+   curl http://127.0.0.1:5005/_agentbreak/scorecard
+   curl http://127.0.0.1:5005/_agentbreak/mcp-scorecard   # if MCP enabled
    ```
 
-9. Run the workload:
+## Scorecard
 
-   ```bash
-   python examples/simple_langchain/main.py
-   ```
-
-10. Check results:
-
-    ```bash
-    curl http://127.0.0.1:5000/_agentbreak/scorecard
-    curl http://127.0.0.1:5000/_agentbreak/requests
-
-    # Only when MCP is enabled:
-    curl http://127.0.0.1:5000/_agentbreak/mcp-scorecard
-    curl http://127.0.0.1:5000/_agentbreak/mcp-requests
-    ```
-
-11. Interpret the resilience score:
-
-    | Score | Meaning |
-    |-------|---------|
-    | 80-100 | Resilient -- agent handles faults well |
-    | 50-79 | Degraded -- some failures but partially functional |
-    | 0-49 | Fragile -- agent struggles with faults |
-
-    Treat duplicate/loop counters as signals -- some frameworks legitimately repeat completions.
-
-## Scenario reference
-
-Targets: `llm_chat`, `mcp_tool`.
-
-Fault kinds: `http_error`, `latency`, `timeout`, `empty_response`, `invalid_json`, `schema_violation`, `wrong_content`, `large_response`.
-
-Schedule modes: `always`, `random` (with `probability`), `periodic` (with `every` and `length`).
-
-Match fields (all optional): `tool_name`, `tool_name_pattern` (glob), `route`, `method`, `model`.
-
-Presets: `brownout`, `mcp-slow-tools`, `mcp-tool-failures`, `mcp-mixed-transient`.
-
-## Verification
-
-```bash
-agentbreak verify
-agentbreak verify --live   # full LangGraph + mock OpenAI + MCP stack
-```
+| Score | Meaning |
+|-------|---------|
+| 80-100 | Resilient |
+| 50-79 | Degraded |
+| 0-49 | Fragile |
 
 ## Notes
 
-- There is no `agentbreak start`. Use `agentbreak serve` with YAML configs.
-- Scenario names and fault kinds live in `scenarios.yaml`, not CLI flags.
-- Default file paths: `application.yaml`, `scenarios.yaml`, `.agentbreak/registry.json`.
-- Config file must exist -- `serve` and `validate` raise `FileNotFoundError` if missing.
-- Port comes from `serve.port` in `application.yaml` (default 5000).
-- Use `--verbose / -v` on `serve` for debug-level logging.
-- Ctrl+C prints a resilience scorecard summary to stderr.
+- `llm.mode: mock` needs no API key. `llm.mode: proxy` forwards to real LLM.
+- Presets: `brownout`, `mcp-slow-tools`, `mcp-tool-failures`, `mcp-mixed-transient`.
+- Ctrl+C prints final scorecard to stderr.
