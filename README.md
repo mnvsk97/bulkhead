@@ -16,6 +16,16 @@ It sits between your agent and two surfaces:
 
 and injects configurable faults: HTTP errors, latency, invalid JSON, empty bodies, corrupt tool-call shapes, timeouts, oversized responses, and more.
 
+## Claude Code Skill
+
+Install the AgentBreak skill into any project with [skills.sh](https://skills.sh):
+
+```bash
+npx skills add mnvsk97/agentbreak
+```
+
+Then ask Claude Code to run chaos tests -- it knows the full workflow.
+
 ## Usage
 
 ### 1. Install
