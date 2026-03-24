@@ -12,3 +12,4 @@ config.yaml
 .tmp/
 application.yaml
 *.pckl
+.langgraph_api/
