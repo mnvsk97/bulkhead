@@ -1,29 +1,8 @@
 # Examples
 
-## `simple_langchain`
-
-Small OpenAI-compatible client example.
-
-```bash
-cd examples/simple_langchain
-pip install -r requirements.txt
-OPENAI_API_KEY=dummy OPENAI_BASE_URL=http://127.0.0.1:5000/v1 python main.py
-```
-
-## `langgraph_report_agent`
-
-LangGraph local-server example using `create_react_agent`, an OpenAI-compatible model, and MCP-backed tools.
-
-```bash
-cd examples/langgraph_report_agent
-pip install -r requirements.txt
-cp .env.example .env
-langgraph dev
-```
-
 ## `simple_mcp_server`
 
-Small FastMCP server with three tools.
+MCP server with reporting tools (list sections, fetch KPIs, lookup notes, render briefs). This is the upstream that AgentBreak proxies.
 
 ```bash
 cd examples/simple_mcp_server
@@ -31,26 +10,20 @@ pip install -r requirements.txt
 python main.py
 ```
 
-Then in another terminal:
+## `simple_react_agent`
+
+LangGraph ReAct agent that calls an OpenAI-compatible LLM and the MCP server above. Point both URLs at AgentBreak to chaos-test the agent.
 
 ```bash
-agentbreak inspect --config application.yaml
-agentbreak serve --config application.yaml --scenarios scenarios.yaml
-```
-
-## `reporting_mcp_server`
-
-More realistic MCP demo server for report generation. It exposes tools, resources, and a prompt.
-
-```bash
-cd examples/reporting_mcp_server
+cd examples/simple_react_agent
 pip install -r requirements.txt
-python main.py
+cp .env.example .env
+langgraph dev
 ```
 
 ## `live_harness`
 
-Full live end-to-end run covering direct and AgentBreak-backed LangGraph execution.
+Automated E2E test — boots everything (mock OpenAI, MCP server, AgentBreak, LangGraph agent) and runs traffic through.
 
 ```bash
 agentbreak verify --live

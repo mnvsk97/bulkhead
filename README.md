@@ -86,4 +86,4 @@ npx skills add mnvsk97/agentbreak
 
 ## Examples
 
-See [examples/](examples/) -- LangChain client, MCP server, LangGraph agent.
+See [examples/](examples/) -- ReAct agent, MCP server, E2E harness.

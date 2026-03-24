@@ -129,7 +129,7 @@ def ensure_example_dependencies(logger: RunLogger) -> None:
                 "--python",
                 str(RUNTIME_PYTHON),
                 "-r",
-                str(REPO_ROOT / "examples" / "langgraph_report_agent" / "requirements.txt"),
+                str(REPO_ROOT / "examples" / "simple_react_agent" / "requirements.txt"),
             ],
             cwd=REPO_ROOT,
             env=os.environ.copy(),
@@ -318,7 +318,7 @@ def main() -> int:
         )
         reporting_mcp = ManagedProcess(
             name="reporting-mcp",
-            command=[str(PYTHON), str(REPO_ROOT / "examples" / "reporting_mcp_server" / "main.py")],
+            command=[str(PYTHON), str(REPO_ROOT / "examples" / "simple_mcp_server" / "main.py")],
             cwd=REPO_ROOT,
             env={**common_env, "REPORTING_MCP_PORT": str(reporting_mcp_port)},
             log_path=logs_dir / "reporting-mcp.log",
@@ -330,7 +330,7 @@ def main() -> int:
         wait_for_http(f"{mock_openai_url}/healthz", logger)
         wait_for_mcp_tools(reporting_mcp_url, logger)
 
-        direct_env_path = REPO_ROOT / "examples" / "langgraph_report_agent" / ".env"
+        direct_env_path = REPO_ROOT / "examples" / "simple_react_agent" / ".env"
         write_env_file(
             direct_env_path,
             {
@@ -345,7 +345,7 @@ def main() -> int:
         langgraph_direct = ManagedProcess(
             name="langgraph-direct",
             command=[*langgraph_command(), "dev", "--port", str(langgraph_port)],
-            cwd=REPO_ROOT / "examples" / "langgraph_report_agent",
+            cwd=REPO_ROOT / "examples" / "simple_react_agent",
             env=common_env,
             log_path=logs_dir / "langgraph.log",
         )
@@ -453,7 +453,7 @@ def main() -> int:
         langgraph_chaos = ManagedProcess(
             name="langgraph-chaos",
             command=[*langgraph_command(), "dev", "--port", str(langgraph_port)],
-            cwd=REPO_ROOT / "examples" / "langgraph_report_agent",
+            cwd=REPO_ROOT / "examples" / "simple_react_agent",
             env=common_env,
             log_path=logs_dir / "langgraph.log",
         )
