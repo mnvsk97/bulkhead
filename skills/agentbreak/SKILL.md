@@ -231,10 +231,11 @@ Tell the user exactly how to connect their agent. Show ONLY the relevant provide
 | `upstream_failures` | Requests that failed |
 | `duplicate_requests` | Same request body seen 2+ times |
 | `suspected_loops` | Same body 3+ times (agent may be stuck) |
+| `response_mutations` | Response payload mutations applied |
 | `run_outcome` | PASS, DEGRADED, or FAIL |
 | `resilience_score` | 0-100 |
 
-MCP scorecard adds: `tool_calls`, `tool_call_counts`, `tool_successes_by_name`, `tool_failures_by_name`.
+MCP scorecard adds: `tool_calls`, `tool_call_counts`, `tool_successes_by_name`, `tool_failures_by_name`, `method_counts`.
 
 ## Scenario schema reference
 
