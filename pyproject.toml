@@ -11,7 +11,7 @@ requires-python = ">=3.10"
 license = "MIT"
 keywords = ["llm", "openai", "anthropic", "mcp", "proxy", "chaos-testing", "resilience", "agents"]
 classifiers = [
-  "Development Status :: 3 - Alpha",
+  "Development Status :: 4 - Beta",
   "Intended Audience :: Developers",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.10",
