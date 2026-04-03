@@ -15,9 +15,9 @@ agentbreak serve
 
 For MCP: `agentbreak inspect` then `serve`.
 
-## Skill
+## Plugin
 
-Install via `npx skills add mnvsk97/agentbreak`, then use `/agentbreak`.
+Install in Claude Code via `/plugin marketplace add mnvsk97/agentbreak`, then use `/agentbreak`.
 
 ## Verification
 

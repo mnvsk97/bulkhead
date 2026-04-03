@@ -1,0 +1,8 @@
+{
+  "name": "agentbreak",
+  "version": "0.4.0",
+  "description": "Chaos proxy that injects latency, errors, and malformed responses to test agent resilience.",
+  "author": {
+    "name": "mnvsk97"
+  }
+}

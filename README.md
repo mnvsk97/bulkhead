@@ -92,25 +92,18 @@ agentbreak history compare 1 2    # diff two runs
 AgentBreak works as a plugin for [Claude Code](https://docs.anthropic.com/en/docs/claude-code):
 
 ```bash
-pip install agentbreak[plugin]
+pip install agentbreak
 ```
 
-Add to your Claude Code settings:
+Then in Claude Code:
 
-```json
-{
-  "mcpServers": {
-    "agentbreak": {
-      "command": "agentbreak",
-      "args": ["mcp-server"]
-    }
-  }
-}
+```
+/plugin marketplace add mnvsk97/agentbreak
+/plugin install agentbreak@mnvsk97-agentbreak
+/reload-plugins
 ```
 
-Now Claude has tools to analyze your codebase, generate chaos scenarios, start the proxy, wire your agent, and auto-revert when done. Your `.env` is never left broken — `agentbreak_stop` auto-reverts.
-
-For a guided workflow, add the skill: `npx skills add mnvsk97/agentbreak`, then type `/agentbreak`.
+Now type `/agentbreak` and Claude walks you through the full chaos testing flow — analyze your codebase, generate scenarios, start the proxy, wire your agent, and produce a resilience report.
 
 ## Full reference
 

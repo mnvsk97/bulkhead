@@ -54,10 +54,11 @@ No code changes needed — just swap the base URL.
 
 ## Claude Code
 
-If you use [Claude Code](https://docs.anthropic.com/en/docs/claude-code), AgentBreak has a guided skill:
+If you use [Claude Code](https://docs.anthropic.com/en/docs/claude-code), AgentBreak has a plugin:
 
-```bash
-npx skills add mnvsk97/agentbreak
+```
+/plugin marketplace add mnvsk97/agentbreak
+/plugin install agentbreak@mnvsk97-agentbreak
 ```
 
 Then type `/agentbreak` — it scans your codebase, generates scenarios, and walks you through results.

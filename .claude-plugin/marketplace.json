@@ -1,0 +1,21 @@
+{
+  "name": "mnvsk97-agentbreak",
+  "owner": {
+    "name": "mnvsk97"
+  },
+  "metadata": {
+    "description": "Chaos-test LLM agents by injecting faults between your agent and the real API.",
+    "version": "0.4.0"
+  },
+  "plugins": [
+    {
+      "name": "agentbreak",
+      "description": "Chaos proxy that injects latency, errors, and malformed responses to test agent resilience.",
+      "version": "0.4.0",
+      "author": {
+        "name": "mnvsk97"
+      },
+      "source": "./plugins/agentbreak"
+    }
+  ]
+}

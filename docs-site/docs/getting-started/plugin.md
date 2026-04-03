@@ -1,88 +1,69 @@
 # Claude Code Plugin
 
-AgentBreak works as a plugin for Claude Code, giving Claude structured tools instead of shell commands. This means safer .env handling, automatic cleanup, and Claude can run chaos tests autonomously.
+AgentBreak works as a plugin for Claude Code, giving Claude structured commands to run chaos tests. It handles `.env` backup/restore, proxy lifecycle, and produces actionable resilience reports.
 
 ## Install
 
 ```bash
-pip install agentbreak[plugin]
+pip install agentbreak
 ```
 
 ## Configure
 
-Add to your Claude Code settings (`.claude/settings.json` or project settings):
+In Claude Code:
 
-```json
-{
-  "mcpServers": {
-    "agentbreak": {
-      "command": "agentbreak",
-      "args": ["mcp-server"]
-    }
-  }
-}
+```
+/plugin marketplace add mnvsk97/agentbreak
+/plugin install agentbreak@mnvsk97-agentbreak
+/reload-plugins
 ```
 
-## Usage
+## Commands
 
-Once configured, Claude has access to these tools:
+| Command | What it does |
+|---------|-------------|
+| `/agentbreak` | Full guided chaos testing workflow |
+| `/agentbreak:create-tests` | Generate tailored chaos scenarios |
+| `/agentbreak:run-tests` | Run tests and produce a resilience report |
 
-| Tool | What it does |
-|------|-------------|
-| `agentbreak_init` | Create `.agentbreak/` config directory |
-| `agentbreak_analyze` | Scan codebase for provider, framework, MCP tools, error handling |
-| `agentbreak_generate_config` | Generate tailored scenarios based on analysis |
-| `agentbreak_inspect` | Discover MCP tools from upstream server |
-| `agentbreak_validate` | Check config files for errors |
-| `agentbreak_start` | Start the chaos proxy |
-| `agentbreak_wire` | Backup .env and rewire agent to proxy |
-| `agentbreak_revert` | Restore original .env from backup |
-| `agentbreak_stop` | Stop proxy + auto-revert .env |
-| `agentbreak_scorecard` | Fetch scorecard from running proxy |
-| `agentbreak_status` | Check proxy and wiring state |
+### `/agentbreak`
 
-### With the skill
+The main command. Type `/agentbreak` and Claude will:
 
-The plugin pairs with the `/agentbreak` skill for a guided workflow:
+1. Check AgentBreak is installed
+2. Init `.agentbreak/` config
+3. Analyze your codebase for provider, framework, MCP tools, error handling
+4. Generate chaos scenarios based on the analysis
+5. Start the proxy, wire your agent, run traffic
+6. Produce a Chaos Test Report with specific fixes
 
-```bash
-npx skills add mnvsk97/agentbreak
-```
+Claude confirms with you before each major step.
 
-Type `/agentbreak` and Claude walks you through the full chaos testing flow using the MCP tools.
+### `/agentbreak:create-tests`
 
-### Without the skill
+Generate `scenarios.yaml` entries. Claude understands the full scenario schema (8 fault kinds, 3 schedule modes, match filters) and writes scenarios targeting your agent's specific failure modes.
 
-You can also just ask Claude directly:
+### `/agentbreak:run-tests`
 
-> "Run chaos tests on my agent"
+Step-by-step test execution: configure, validate, serve, wire, send traffic, collect scorecard, produce report.
 
-Claude will use the AgentBreak tools to analyze your codebase, generate scenarios, start the proxy, wire your agent, and report results.
+## Safety
 
-## Safety guarantees
-
-The plugin manages state in code, not in prompts:
-
-- **`agentbreak_stop` auto-reverts your .env** — your app config is never left pointing at a dead proxy, even if Claude crashes or the conversation ends.
-- **`agentbreak_revert`** can be called at any time as a safety valve.
-- **`agentbreak_status`** lets Claude (or you) check what's running and what's wired at any point.
-
-If something goes wrong, you can always run from the CLI:
+- **`.env` is always restored.** The plugin backs up your `.env` before wiring and restores it when done.
+- **Proxy is always stopped.** Cleanup runs even if something goes wrong mid-test.
+- If something goes wrong, you can always restore manually:
 
 ```bash
-# Check if a backup exists
-ls .env.agentbreak-backup
-
-# Restore manually
 cp .env.agentbreak-backup .env
+pkill -f "agentbreak serve"
 ```
 
 ## Plugin vs CLI
 
 | | CLI | Plugin |
 |---|-----|--------|
-| Install | `pip install agentbreak` | `pip install agentbreak[plugin]` |
-| Usage | Manual commands | Claude calls tools automatically |
-| .env handling | Manual backup/restore | Automatic backup + auto-revert on stop |
-| Scorecard | `curl` output | Structured JSON in Claude's context |
+| Install | `pip install agentbreak` | `pip install agentbreak` + `/plugin install` in Claude Code |
+| Usage | Manual commands | Claude runs commands automatically |
+| .env handling | Manual backup/restore | Automatic backup + restore on stop |
+| Scorecard | `curl` output | Structured report in Claude's context |
 | Best for | CI, scripts, manual testing | Interactive development with Claude |

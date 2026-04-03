@@ -1,20 +1,12 @@
-# Claude Code Skill
+# Claude Code Workflow
 
-If you use [Claude Code](https://docs.anthropic.com/en/docs/claude-code), AgentBreak has a guided skill that automates the entire workflow — no manual config needed.
+When you run `/agentbreak` in Claude Code, the plugin runs a 6-step workflow — no manual config needed.
 
 ## Prerequisites
 
-The skill uses the AgentBreak plugin for Claude Code. Set it up first — see [Plugin](plugin.md).
+AgentBreak must be installed and the plugin configured — see [Plugin](plugin.md).
 
-## Install
-
-```bash
-npx skills add mnvsk97/agentbreak
-```
-
-## Usage
-
-Type `/agentbreak` in Claude Code. The skill runs a 6-step workflow:
+## The Workflow
 
 ### Step 1: Setup
 Installs AgentBreak and initializes `.agentbreak/` if needed.
@@ -53,7 +45,7 @@ You can then ask Claude to apply the fixes directly.
 
 ## What makes it useful
 
-The skill does what you'd otherwise do manually — but it picks the *right* scenarios for your codebase. An agent with no retry logic gets rate limit errors. An agent with MCP tools gets per-tool fault injection. The report ties failures back to specific lines in your code.
+The plugin does what you'd otherwise do manually — but it picks the *right* scenarios for your codebase. An agent with no retry logic gets rate limit errors. An agent with MCP tools gets per-tool fault injection. The report ties failures back to specific lines in your code.
 
 ## Presets
 
@@ -63,4 +55,4 @@ If you'd rather skip the analysis and use a preset:
 preset: brownout
 ```
 
-The skill also supports presets — just tell Claude which preset you want during Step 3.
+Just tell Claude which preset you want during Step 3.

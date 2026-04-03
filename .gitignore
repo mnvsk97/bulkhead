@@ -22,7 +22,7 @@ skills-lock.json
 .cortex/
 docs-site/site/
 
-# IDE skill symlinks (created by npx skills add)
+# IDE plugin/skill symlinks
 .adal/
 .augment/
 .codebuddy/

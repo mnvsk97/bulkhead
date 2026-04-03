@@ -1228,8 +1228,8 @@ def mcp_server_command() -> None:
         from agentbreak.mcp_server import run_server
     except ImportError:
         typer.echo(
-            "MCP server requires the plugin extra. Install it with:\n\n"
-            "  pip install agentbreak[plugin]\n",
+            "MCP server requires the mcp package. Install it with:\n\n"
+            "  pip install mcp\n",
             err=True,
         )
         raise typer.Exit(code=1)

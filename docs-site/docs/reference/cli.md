@@ -44,6 +44,14 @@ Run the test suite (pytest).
 agentbreak verify
 ```
 
+## `agentbreak mcp-server`
+
+Start AgentBreak as an MCP server (for advanced use). Most users should use the [Claude Code plugin](../getting-started/plugin.md) instead.
+
+```bash
+agentbreak mcp-server    # requires: pip install mcp
+```
+
 ## `agentbreak history`
 
 List past runs (requires `history.enabled: true` in `application.yaml`).
