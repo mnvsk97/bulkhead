@@ -16,4 +16,7 @@ This skill is now part of the AgentBreak Claude Code plugin. Install with:
 /reload-plugins
 ```
 
-Then use `/agentbreak` for the full guided workflow.
+Then use the three commands:
+1. `/agentbreak:init` — initialize and analyze your agent
+2. `/agentbreak:create-tests` — generate chaos scenarios
+3. `/agentbreak:run-tests` — run tests and get scorecard

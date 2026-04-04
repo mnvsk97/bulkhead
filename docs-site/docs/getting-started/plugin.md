@@ -22,30 +22,21 @@ In Claude Code:
 
 | Command | What it does |
 |---------|-------------|
-| `/agentbreak` | Full guided chaos testing workflow |
+| `/agentbreak:init` | Initialize AgentBreak, analyze your agent codebase |
 | `/agentbreak:create-tests` | Generate tailored chaos scenarios |
 | `/agentbreak:run-tests` | Run tests and produce a resilience report |
 
-### `/agentbreak`
+### `/agentbreak:init`
 
-The main command. Type `/agentbreak` and Claude will:
-
-1. Check AgentBreak is installed
-2. Init `.agentbreak/` config
-3. Analyze your codebase for provider, framework, MCP tools, error handling
-4. Generate chaos scenarios based on the analysis
-5. Start the proxy, wire your agent, run traffic
-6. Produce a Chaos Test Report with specific fixes
-
-Claude confirms with you before each major step.
+Sets up `.agentbreak/` config and scans your codebase for provider, framework, MCP tools, and error handling patterns. Run this first.
 
 ### `/agentbreak:create-tests`
 
-Generate `scenarios.yaml` entries. Claude understands the full scenario schema (8 fault kinds, 3 schedule modes, match filters) and writes scenarios targeting your agent's specific failure modes.
+Generate `scenarios.yaml` entries based on the analysis from init. Claude understands the full scenario schema (8 fault kinds, 3 schedule modes, match filters) and writes scenarios targeting your agent's specific failure modes.
 
 ### `/agentbreak:run-tests`
 
-Step-by-step test execution: configure, validate, serve, wire, send traffic, collect scorecard, produce report.
+Step-by-step test execution: validate, serve, wire your agent, send traffic, collect scorecard, produce a Chaos Test Report with specific fixes.
 
 ## Safety
 

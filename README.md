@@ -103,7 +103,7 @@ Then in Claude Code:
 /reload-plugins
 ```
 
-Now type `/agentbreak` and Claude walks you through the full chaos testing flow — analyze your codebase, generate scenarios, start the proxy, wire your agent, and produce a resilience report.
+Now use the three commands — `/agentbreak:init`, `/agentbreak:create-tests`, and `/agentbreak:run-tests` — and Claude walks you through codebase analysis, scenario generation, and resilience reporting.
 
 ## Full reference
 

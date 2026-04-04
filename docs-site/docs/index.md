@@ -61,7 +61,7 @@ If you use [Claude Code](https://docs.anthropic.com/en/docs/claude-code), AgentB
 /plugin install agentbreak@mnvsk97-agentbreak
 ```
 
-Then type `/agentbreak` — it scans your codebase, generates scenarios, and walks you through results.
+Then use `/agentbreak:init`, `/agentbreak:create-tests`, and `/agentbreak:run-tests` — Claude walks you through codebase analysis, scenario generation, and resilience reporting.
 
 ## Next steps
 
