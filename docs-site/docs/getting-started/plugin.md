@@ -21,7 +21,6 @@ pip install agentbreak
 To update after a new release:
 
 ```
-/plugin marketplace add mnvsk97/agentbreak
 /reload-plugins
 ```
 
