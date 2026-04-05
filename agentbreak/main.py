@@ -1217,7 +1217,6 @@ async def get_agentbreak_requests() -> dict[str, Any]:
     return state.llm_runtime.current_requests()
 
 
-
 @app.get("/_agentbreak/llm-scorecard")
 async def get_agentbreak_llm_scorecard() -> dict[str, Any]:
     return await get_agentbreak_scorecard()

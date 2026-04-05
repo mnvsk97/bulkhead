@@ -9,4 +9,4 @@ Reference docs beyond the root [README](../README.md) and [CONTRIBUTING](../CONT
 | [FAILURE_MODES.md](FAILURE_MODES.md) | What AgentBreak simulates today and what is out of scope |
 | [TODO_SCENARIOS.md](TODO_SCENARIOS.md) | Scenario targets recognized but not yet implemented |
 
-For coding agent workflows, see [AGENTS.md](../AGENTS.md) and the skills under [`skills/`](../skills/).
+For coding agent workflows, see [AGENTS.md](../AGENTS.md). For the full docs site, see [mnvsk97.github.io/agentbreak](https://mnvsk97.github.io/agentbreak).

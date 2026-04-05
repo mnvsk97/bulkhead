@@ -65,7 +65,7 @@ Don't want to write YAML? Use a preset:
 preset: brownout
 ```
 
-Available presets: `brownout`, `mcp-slow-tools`, `mcp-tool-failures`, `mcp-mixed-transient`.
+Available presets: `standard`, `standard-mcp`, `standard-all`, `brownout`, `mcp-slow-tools`, `mcp-tool-failures`, `mcp-mixed-transient`.
 
 ## MCP testing
 

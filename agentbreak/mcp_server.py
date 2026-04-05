@@ -184,8 +184,8 @@ def agentbreak_init(project_path: str = ".") -> str:
     if scenarios_path.exists():
         results.append(f"Already exists: {scenarios_path}")
     else:
-        from agentbreak.main import DEFAULT_SCENARIOS_YAML
-        scenarios_path.write_text(DEFAULT_SCENARIOS_YAML, encoding="utf-8")
+        from agentbreak.main import SCENARIOS_YAML_LLM_ONLY
+        scenarios_path.write_text(SCENARIOS_YAML_LLM_ONLY, encoding="utf-8")
         results.append(f"Created {scenarios_path}")
 
     return "\n".join(results)

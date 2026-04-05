@@ -84,4 +84,7 @@ When the proxy is running:
 | `GET /_agentbreak/mcp-scorecard` | MCP scorecard |
 | `GET /_agentbreak/requests` | Recent LLM requests |
 | `GET /_agentbreak/mcp-requests` | Recent MCP requests |
+| `POST /_agentbreak/reset` | Reset all runtime counters |
+| `GET /_agentbreak/history` | List past runs (if history enabled) |
+| `GET /_agentbreak/history/{id}` | Get details for a specific run |
 | `GET /healthz` | Health check |

@@ -21,7 +21,7 @@ Creates `.agentbreak/` if needed and confirms findings with you before proceedin
 
 ### `/agentbreak:create-tests` — Generate Scenarios
 
-Creates tailored `application.yaml` and `scenarios.yaml` based on the analysis from init. Scenarios target gaps — if your agent has no retry logic, it'll prioritize error scenarios.
+Generates tailored scenarios in `scenarios.yaml` based on the analysis from init. Scenarios target gaps — if your agent has no retry logic, it'll prioritize error scenarios.
 
 You review and adjust the scenarios before proceeding.
 

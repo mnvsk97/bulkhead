@@ -30,9 +30,17 @@ Each scenario in `.agentbreak/scenarios.yaml` has a **target**, a **fault**, and
 | `random` | `probability` (0.0-1.0) | Probabilistic |
 | `periodic` | `every`, `length` | `length` faults every `every` requests |
 
-## Targeting specific tools or models
+## Match fields
 
-Use the `match` field to scope faults:
+Use the `match` field to scope faults to specific requests:
+
+| Field | Applies to | Description |
+|-------|-----------|-------------|
+| `model` | `llm_chat` | Match a specific model name |
+| `tool_name` | `mcp_tool` | Match an exact tool/resource/prompt name |
+| `tool_name_pattern` | `mcp_tool` | Wildcard match (e.g. `search_*`) |
+| `route` | both | Match a specific request path |
+| `method` | both | Match HTTP method or MCP method |
 
 ```yaml
 # Only affect GPT-4o requests
@@ -100,4 +108,14 @@ scenarios:
       probability: 0.2
 ```
 
-Available presets: `brownout`, `mcp-slow-tools`, `mcp-tool-failures`, `mcp-mixed-transient`.
+Available presets:
+
+| Preset | What it does |
+|--------|-------------|
+| `standard` | Baseline LLM faults — rate limit, server error, latency, invalid JSON, empty response, schema violation (6 scenarios) |
+| `standard-mcp` | Baseline MCP faults — 503, timeout, latency, empty response, invalid JSON, schema violation, wrong content (7 scenarios) |
+| `standard-all` | Both LLM + MCP baselines combined (13 scenarios) |
+| `brownout` | Random LLM latency + rate limits |
+| `mcp-slow-tools` | 90% of MCP tool calls are slow |
+| `mcp-tool-failures` | 30% of MCP tool calls return 503 |
+| `mcp-mixed-transient` | Light MCP latency + errors |

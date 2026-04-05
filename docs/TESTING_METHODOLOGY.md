@@ -114,7 +114,15 @@ scenarios:
 
 ### Target specific tools or models
 
-Use the `match` field to scope faults to particular tools or models:
+Use the `match` field to scope faults:
+
+| Field | Applies to | Description |
+|-------|-----------|-------------|
+| `model` | `llm_chat` | Match a specific model name |
+| `tool_name` | `mcp_tool` | Exact tool name |
+| `tool_name_pattern` | `mcp_tool` | Wildcard match (e.g. `search_*`) |
+| `route` | both | Match request path |
+| `method` | both | Match HTTP/MCP method |
 
 ```yaml
 match:
@@ -177,6 +185,9 @@ Built-in scenario bundles for common patterns:
 
 | Preset | What it does |
 |--------|-------------|
+| `standard` | Baseline LLM faults (6 scenarios) |
+| `standard-mcp` | Baseline MCP faults (7 scenarios) |
+| `standard-all` | Both LLM + MCP baselines (13 scenarios) |
 | `brownout` | Random LLM latency + rate limits |
 | `mcp-slow-tools` | 90% of MCP tool calls are slow |
 | `mcp-tool-failures` | 30% of MCP tool calls return 503 |

@@ -32,7 +32,15 @@ Each scenario in `.agentbreak/scenarios.yaml` has a **target**, a **fault**, and
 
 ## Match filters
 
-Use the `match` field to scope faults to specific models or tools.
+Use the `match` field to scope faults to specific requests.
+
+| Field | Applies to | Description |
+|-------|-----------|-------------|
+| `model` | `llm_chat` | Match a specific model name |
+| `tool_name` | `mcp_tool` | Exact tool/resource/prompt name |
+| `tool_name_pattern` | `mcp_tool` | Wildcard match (e.g. `search_*`) |
+| `route` | both | Match request path |
+| `method` | both | Match HTTP or MCP method |
 
 ### By model
 
